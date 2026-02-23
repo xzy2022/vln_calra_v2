@@ -21,6 +21,7 @@ def create_sync_runtime(
     timeout_seconds: float,
     map_name: str,
     fixed_delta_seconds: float,
+    no_rendering_mode: bool = False,
 ) -> CarlaRuntime:
     """Connect to CARLA, load map if needed, and switch to sync mode."""
     carla = require_carla()
@@ -37,6 +38,7 @@ def create_sync_runtime(
     sync_settings = world.get_settings()
     sync_settings.synchronous_mode = True
     sync_settings.fixed_delta_seconds = fixed_delta_seconds
+    sync_settings.no_rendering_mode = no_rendering_mode
     world.apply_settings(sync_settings)
     world.tick()
 
@@ -46,4 +48,3 @@ def create_sync_runtime(
 def restore_world_settings(world: Any, original_settings: Any) -> None:
     """Restore world settings changed by create_sync_runtime."""
     world.apply_settings(original_settings)
-

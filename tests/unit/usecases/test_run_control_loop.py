@@ -97,11 +97,10 @@ def test_run_control_loop_orders_calls_and_returns_stats() -> None:
     )
 
     assert events == ["read", "compute", "apply", "tick", "read", "compute", "apply", "tick"]
-    assert result.steps == 2
+    assert result.executed_steps == 2
     assert result.last_frame == 2
     assert result.last_speed_mps == 1.5
     assert result.avg_speed_mps == 0.75
     assert len(actuator.applied) == 2
     assert "step=1" in logger.messages[0]
     assert "throttle=0.500" in logger.messages[0]
-

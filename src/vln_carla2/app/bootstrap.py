@@ -26,6 +26,7 @@ def run(settings: Settings) -> LoopResult:
             timeout_seconds=settings.timeout_seconds,
             map_name=settings.map_name,
             fixed_delta_seconds=settings.fixed_delta_seconds,
+            no_rendering_mode=settings.no_rendering_mode,
         )
         ego_vehicle = spawn_vehicle(
             world=runtime.world,
@@ -55,4 +56,3 @@ def run(settings: Settings) -> LoopResult:
                 restore_world_settings(runtime.world, runtime.original_settings)
             except Exception as exc:  # pragma: no cover - best effort cleanup
                 print(f"[WARN] failed to restore CARLA world settings: {exc}")
-

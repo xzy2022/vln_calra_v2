@@ -17,7 +17,6 @@ def test_control_loop_smoke() -> None:
 
     result = run(Settings(steps=60, target_speed_mps=5.0))
 
-    assert result.steps == 60
+    assert result.executed_steps == 60
     assert result.last_speed_mps > 0.1
     assert result.avg_speed_mps > 0.1
-
