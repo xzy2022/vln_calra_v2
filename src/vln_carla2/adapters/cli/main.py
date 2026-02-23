@@ -38,11 +38,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--render-mode",
-        choices=("normal", "offscreen", "no-rendering"),
+        choices=("normal", "no-rendering"),
         default=defaults.render_mode,
         help=(
-            "Render mode for the run: normal (default), offscreen "
-            "(needs --launch-carla), no-rendering"
+            "Render computation mode for the run: normal (default), "
+            "no-rendering."
+        ),
+    )
+    parser.add_argument(
+        "--window-mode",
+        choices=("onscreen", "offscreen"),
+        default=None,
+        help=(
+            "Window mode for launched CARLA server: onscreen (default), "
+            "offscreen"
         ),
     )
     parser.add_argument(
@@ -109,18 +118,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     launched_process: subprocess.Popen[bytes] | None = None
-    no_rendering_mode = args.render_mode == "no-rendering"
-    offscreen_mode = args.render_mode in {"offscreen", "no-rendering"}
+    render_mode = args.render_mode
+    no_rendering_mode = render_mode == "no-rendering"
+    offscreen_mode = args.window_mode == "offscreen"
 
-    if args.render_mode == "offscreen" and not args.launch_carla:
+    if offscreen_mode and not args.launch_carla:
         print(
-            "[WARN] render-mode=offscreen only affects launched CARLA server "
+            "[WARN] window-mode=offscreen only affects launched CARLA server "
             "(enable --launch-carla)."
         )
-    if args.render_mode == "no-rendering" and not args.launch_carla:
+    if no_rendering_mode and not args.launch_carla:
         print(
-            "[WARN] render-mode=no-rendering applies world settings, but window visibility "
-            "depends on existing CARLA server startup flags."
+            "[WARN] render-mode=no-rendering applies world settings, but window "
+            "visibility depends on existing CARLA server startup flags."
         )
 
     if args.launch_carla:
@@ -184,7 +194,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         timeout_seconds=args.timeout_seconds,
         map_name=args.map_name,
         fixed_delta_seconds=args.fixed_delta_seconds,
-        render_mode=args.render_mode,
+        render_mode=render_mode,
         steps=args.steps,
         target_speed_mps=args.target_speed_mps,
         vehicle_blueprint=args.vehicle_blueprint,

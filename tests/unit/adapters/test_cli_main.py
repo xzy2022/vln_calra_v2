@@ -65,7 +65,7 @@ def test_main_launches_carla_with_offscreen_mode(monkeypatch) -> None:
             "--launch-carla",
             "--carla-exe",
             "C:/CARLA/CarlaUE4.exe",
-            "--render-mode",
+            "--window-mode",
             "offscreen",
             "--steps",
             "1",
@@ -118,10 +118,69 @@ def test_main_launches_carla_with_no_rendering_mode(monkeypatch) -> None:
     )
 
     assert exit_code == 0
-    assert captured["launch_kwargs"]["offscreen"] is True
+    assert captured["launch_kwargs"]["offscreen"] is False
     assert captured["launch_kwargs"]["no_rendering"] is True
     assert captured["settings"].no_rendering_mode is True
     assert captured["terminated"] == 7788
+
+
+def test_main_launches_carla_with_no_rendering_and_offscreen_window(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeProcess:
+        pid = 9898
+
+        def __init__(self) -> None:
+            self._exit_code: int | None = None
+
+        def poll(self) -> int | None:
+            return self._exit_code
+
+    def fake_run(settings: Any) -> Any:
+        captured["settings"] = settings
+        return _loop_result()
+
+    def fake_launch(**kwargs: Any) -> FakeProcess:
+        captured["launch_kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setattr(cli_main, "run", fake_run)
+    monkeypatch.setattr(cli_main, "is_carla_server_reachable", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(cli_main, "launch_carla_server", fake_launch)
+    monkeypatch.setattr(cli_main, "wait_for_carla_server", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        cli_main,
+        "terminate_carla_server",
+        lambda process: captured.setdefault("terminated", process.pid),
+    )
+
+    exit_code = cli_main.main(
+        [
+            "--launch-carla",
+            "--carla-exe",
+            "C:/CARLA/CarlaUE4.exe",
+            "--render-mode",
+            "no-rendering",
+            "--window-mode",
+            "offscreen",
+            "--steps",
+            "1",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["launch_kwargs"]["offscreen"] is True
+    assert captured["launch_kwargs"]["no_rendering"] is True
+    assert captured["settings"].no_rendering_mode is True
+    assert captured["terminated"] == 9898
+
+
+def test_main_rejects_offscreen_render_mode() -> None:
+    try:
+        cli_main.main(["--render-mode", "offscreen", "--steps", "1"])
+        assert False, "expected argparse to reject render-mode=offscreen"
+    except SystemExit as exc:
+        assert exc.code == 2
 
 
 def test_main_fails_if_server_running_without_reuse(monkeypatch) -> None:
