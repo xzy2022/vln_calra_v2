@@ -84,7 +84,7 @@ def launch_carla_server(
     no_sound: bool = True,
     quality_level: str | None = None,
     extra_args: Sequence[str] | None = None,
-) -> subprocess.Popen[str]:
+) -> subprocess.Popen[bytes]:
     """Start CarlaUE4 and return the process handle."""
     command = build_carla_server_command(
         executable_path=executable_path,
@@ -121,7 +121,7 @@ def wait_for_carla_server(
     port: int,
     timeout_seconds: float,
     *,
-    process: subprocess.Popen[str] | None = None,
+    process: subprocess.Popen[bytes] | None = None,
     poll_interval_seconds: float = 0.5,
 ) -> None:
     """Wait until CARLA RPC endpoint is reachable or timeout is hit."""
@@ -150,7 +150,7 @@ def wait_for_carla_server(
 
 
 def terminate_carla_server(
-    process: subprocess.Popen[str],
+    process: subprocess.Popen[bytes],
     *,
     timeout_seconds: float = 8.0,
 ) -> None:

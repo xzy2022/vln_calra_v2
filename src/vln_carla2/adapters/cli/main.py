@@ -108,7 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    launched_process: subprocess.Popen[str] | None = None
+    launched_process: subprocess.Popen[bytes] | None = None
     no_rendering_mode = args.render_mode == "no-rendering"
     offscreen_mode = args.render_mode in {"offscreen", "no-rendering"}
 
