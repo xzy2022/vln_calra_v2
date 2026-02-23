@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vln-carla2"
+version = "0.1.0"
+description = "vln_carla project"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  # 运行依赖写这里
+  "numpy",
+  "carla==0.9.16",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "integration: tests that require external systems like CARLA",
+  "slow: long-running tests",
+]
