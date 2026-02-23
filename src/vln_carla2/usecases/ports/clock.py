@@ -8,4 +8,5 @@ class Clock(Protocol):
 
     def tick(self) -> int:
         """Advance one step."""
+        ...
 

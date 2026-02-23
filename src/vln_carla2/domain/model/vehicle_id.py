@@ -10,7 +10,7 @@ class VehicleId:
     value: int
 
     def __post_init__(self) -> None:
-        if not isinstance(self.value, int):
+        if type(self.value) is not int:
             raise TypeError("VehicleId.value must be int")
         if self.value <= 0:
             raise ValueError("VehicleId.value must be positive")

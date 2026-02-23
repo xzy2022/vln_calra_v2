@@ -11,4 +11,5 @@ class VehicleStateReader(Protocol):
 
     def read(self, vehicle_id: VehicleId) -> VehicleState:
         """Read latest state from the runtime."""
+        ...
 

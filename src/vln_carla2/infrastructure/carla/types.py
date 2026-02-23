@@ -3,7 +3,7 @@
 from typing import Any
 
 try:
-    import carla as _carla
+    import carla as _carla # pyright: ignore[reportMissingTypeStubs]  # type: ignore[import-untyped]
 except ModuleNotFoundError:
     _carla = None
 

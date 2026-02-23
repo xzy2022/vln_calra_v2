@@ -17,13 +17,14 @@ class SpeedController(Protocol):
 
     def compute(self, state: VehicleState, target: TargetSpeedCommand) -> ControlCommand:
         """Compute control command from state and target."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
 class LoopResult:
     """Summary of a finished control loop execution."""
 
-    steps: int
+    executed_steps: int
     last_speed_mps: float
     avg_speed_mps: float
     last_frame: int
@@ -65,7 +66,7 @@ class RunControlLoop:
 
         avg_speed_mps = sum(speed_samples) / len(speed_samples)
         return LoopResult(
-            steps=max_steps,
+            executed_steps=max_steps,
             last_speed_mps=last_speed_mps,
             avg_speed_mps=avg_speed_mps,
             last_frame=last_frame,
