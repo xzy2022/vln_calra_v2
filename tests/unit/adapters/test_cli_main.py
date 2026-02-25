@@ -28,6 +28,18 @@ def test_load_env_from_dotenv_reads_carla_exe(monkeypatch) -> None:
         dotenv.unlink(missing_ok=True)
 
 
+def test_load_env_from_dotenv_reads_carla_exe_with_utf8_bom(monkeypatch) -> None:
+    dotenv = Path(".env.test.cli.bom")
+    dotenv.write_bytes(b"\xef\xbb\xbfCARLA_UE4_EXE=C:/CARLA/FromBom.exe\n")
+    monkeypatch.delenv("CARLA_UE4_EXE", raising=False)
+
+    try:
+        cli_main._load_env_from_dotenv(str(dotenv))
+        assert cli_main.os.getenv("CARLA_UE4_EXE") == "C:/CARLA/FromBom.exe"
+    finally:
+        dotenv.unlink(missing_ok=True)
+
+
 def test_main_passes_sync_mode_settings(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 
