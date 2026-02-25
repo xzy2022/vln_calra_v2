@@ -3,14 +3,28 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Protocol
 
-from vln_carla2.adapters.cli.keyboard_input_windows import KeyboardInputWindows
-from vln_carla2.domain.model.vehicle_id import VehicleId
-from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
-from vln_carla2.usecases.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.move_spectator import MoveSpectator
+from vln_carla2.usecases.input_snapshot import InputSnapshot
+
+
+class KeyboardInputProtocol(Protocol):
+    """Read one keyboard input snapshot per loop iteration."""
+
+    def read_snapshot(self) -> InputSnapshot: ...
+
+
+class MoveSpectatorProtocol(Protocol):
+    """Move spectator based on the read input snapshot."""
+
+    def move(self, snapshot: InputSnapshot) -> None: ...
+
+
+class FollowVehicleProtocol(Protocol):
+    """Adjust spectator to follow the currently tracked vehicle."""
+
+    def follow_once(self) -> bool: ...
 
 
 @dataclass(slots=True)
@@ -20,33 +34,9 @@ class CliRuntime:
     world: Any
     synchronous_mode: bool
     sleep_seconds: float
-    spectator_initial_z: float = 20.0
-    spectator_min_z: float = -20.0
-    spectator_max_z: float = 120.0
-    follow_vehicle_id: int | None = None
-    keyboard_input: KeyboardInputWindows | None = None
-    move_spectator: MoveSpectator | None = None
-    follow_vehicle_topdown: FollowVehicleTopDown | None = None
-    _world_adapter: CarlaWorldAdapter | None = field(init=False, default=None, repr=False)
-
-    def __post_init__(self) -> None:
-        if hasattr(self.world, "get_spectator"):
-            self._world_adapter = CarlaWorldAdapter(self.world)
-            if self.move_spectator is None:
-                self.move_spectator = MoveSpectator(
-                    world=self._world_adapter,
-                    min_z=self.spectator_min_z,
-                    max_z=self.spectator_max_z,
-                )
-            if self.keyboard_input is None:
-                self.keyboard_input = KeyboardInputWindows()
-            if self.follow_vehicle_topdown is None and self.follow_vehicle_id is not None:
-                self.follow_vehicle_topdown = FollowVehicleTopDown(
-                    world=self._world_adapter,
-                    vehicle_id=VehicleId(self.follow_vehicle_id),
-                    z=self.spectator_initial_z,
-                )
-            self._initialize_spectator_top_down()
+    keyboard_input: KeyboardInputProtocol | None = None
+    move_spectator: MoveSpectatorProtocol | None = None
+    follow_vehicle_topdown: FollowVehicleProtocol | None = None
 
     def run(self, *, max_ticks: int | None = None) -> int:
         """Run until interrupted or until max_ticks is reached."""
@@ -72,16 +62,6 @@ class CliRuntime:
 
         snapshot = self.world.wait_for_tick()
         return int(snapshot.frame)
-
-    def _initialize_spectator_top_down(self) -> None:
-        if self._world_adapter is None:
-            return
-        transform = self._world_adapter.get_spectator_transform()
-        transform.location.z = self.spectator_initial_z
-        transform.rotation.pitch = -90.0
-        transform.rotation.yaw = 0.0
-        transform.rotation.roll = 0.0
-        self._world_adapter.set_spectator_transform(transform)
 
     def _handle_keyboard_once(self) -> None:
         if self.keyboard_input is None or self.move_spectator is None:

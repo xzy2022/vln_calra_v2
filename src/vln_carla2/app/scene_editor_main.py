@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
+from vln_carla2.app.carla_session import CarlaSessionConfig, managed_carla_session
+from vln_carla2.app.operator_container import build_operator_container
 from vln_carla2.adapters.cli.runtime import CliRuntime
-from vln_carla2.infrastructure.carla.client_factory import restore_world_settings
-from vln_carla2.infrastructure.carla.types import require_carla
 
 
 @dataclass(slots=True)
@@ -40,13 +39,6 @@ class SceneEditorSettings:
 
 
 @dataclass(slots=True)
-class _RuntimeContext:
-    client: Any
-    world: Any
-    original_settings: Any
-
-
-@dataclass(slots=True)
 class RunSceneEditorLoop:
     """Stage-1 use case: run tick loop with spectator controls."""
 
@@ -58,45 +50,22 @@ class RunSceneEditorLoop:
 
 def run(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
     """Create CARLA runtime, start tick loop, and restore world settings on exit."""
-    context = _create_runtime_context(settings)
-    runtime = CliRuntime(
-        world=context.world,
+    session_config = CarlaSessionConfig(
+        host=settings.host,
+        port=settings.port,
+        timeout_seconds=settings.timeout_seconds,
+        map_name=settings.map_name,
         synchronous_mode=settings.synchronous_mode,
-        sleep_seconds=settings.tick_sleep_seconds,
-        follow_vehicle_id=settings.follow_vehicle_id,
+        fixed_delta_seconds=settings.fixed_delta_seconds,
+        no_rendering_mode=settings.no_rendering_mode,
     )
-    usecase = RunSceneEditorLoop(runtime=runtime)
 
-    try:
+    with managed_carla_session(session_config) as session:
+        container = build_operator_container(
+            world=session.world,
+            synchronous_mode=settings.synchronous_mode,
+            sleep_seconds=settings.tick_sleep_seconds,
+            follow_vehicle_id=settings.follow_vehicle_id,
+        )
+        usecase = RunSceneEditorLoop(runtime=container.runtime)
         return usecase.run(max_ticks=max_ticks)
-    finally:
-        restore_world_settings(context.world, context.original_settings)
-
-
-def _create_runtime_context(settings: SceneEditorSettings) -> _RuntimeContext:
-    carla = require_carla()
-
-    client = carla.Client(settings.host, settings.port)
-    client.set_timeout(settings.timeout_seconds)
-    world = client.get_world()
-
-    current_map = world.get_map().name.split("/")[-1]
-    if current_map != settings.map_name:
-        world = client.load_world(settings.map_name)
-
-    original_settings = world.get_settings()
-    runtime_settings = world.get_settings()
-    runtime_settings.synchronous_mode = settings.synchronous_mode
-    runtime_settings.no_rendering_mode = settings.no_rendering_mode
-    runtime_settings.fixed_delta_seconds = (
-        settings.fixed_delta_seconds if settings.synchronous_mode else None
-    )
-    world.apply_settings(runtime_settings)
-    if settings.synchronous_mode:
-        world.tick()
-
-    return _RuntimeContext(
-        client=client,
-        world=world,
-        original_settings=original_settings,
-    )

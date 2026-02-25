@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 
 from vln_carla2.adapters.cli.runtime import CliRuntime
+from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
+from vln_carla2.usecases.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.input_snapshot import InputSnapshot
+from vln_carla2.usecases.move_spectator import MoveSpectator
 
 
 @dataclass
@@ -162,12 +166,6 @@ def test_runtime_handles_keyboard_delta_before_tick() -> None:
         move_spectator=move_spectator,
     )
 
-    spectator_transform = world.get_spectator().get_transform()
-    assert spectator_transform.location.z == 20.0
-    assert spectator_transform.rotation.pitch == -90.0
-    assert spectator_transform.rotation.yaw == 0.0
-    assert spectator_transform.rotation.roll == 0.0
-
     executed = runtime.run(max_ticks=2)
 
     assert executed == 2
@@ -189,12 +187,18 @@ def test_runtime_follow_vehicle_overrides_keyboard_when_actor_exists() -> None:
     keyboard = _FakeKeyboardInput(
         snapshots=[InputSnapshot(dx=2.0, dy=3.0, dz=1.0), InputSnapshot.zero()]
     )
+    world_adapter = CarlaWorldAdapter(world)
     runtime = CliRuntime(
         world=world,
         synchronous_mode=False,
         sleep_seconds=0.0,
         keyboard_input=keyboard,
-        follow_vehicle_id=42,
+        move_spectator=MoveSpectator(world=world_adapter, min_z=-20.0, max_z=120.0),
+        follow_vehicle_topdown=FollowVehicleTopDown(
+            world=world_adapter,
+            vehicle_id=VehicleId(42),
+            z=20.0,
+        ),
     )
 
     executed = runtime.run(max_ticks=2)
@@ -212,12 +216,18 @@ def test_runtime_follow_vehicle_overrides_keyboard_when_actor_exists() -> None:
 def test_runtime_follow_vehicle_falls_back_to_keyboard_when_actor_missing() -> None:
     world = _FakeWorldWithSpectator()
     keyboard = _FakeKeyboardInput(snapshots=[InputSnapshot(dx=1.0, dy=-2.0, dz=0.5)])
+    world_adapter = CarlaWorldAdapter(world)
     runtime = CliRuntime(
         world=world,
         synchronous_mode=False,
         sleep_seconds=0.0,
         keyboard_input=keyboard,
-        follow_vehicle_id=999,
+        move_spectator=MoveSpectator(world=world_adapter, min_z=-20.0, max_z=120.0),
+        follow_vehicle_topdown=FollowVehicleTopDown(
+            world=world_adapter,
+            vehicle_id=VehicleId(999),
+            z=20.0,
+        ),
     )
 
     executed = runtime.run(max_ticks=1)
@@ -226,7 +236,7 @@ def test_runtime_follow_vehicle_falls_back_to_keyboard_when_actor_missing() -> N
     spectator_transform = world.get_spectator().get_transform()
     assert spectator_transform.location.x == 4.0
     assert spectator_transform.location.y == 2.0
-    assert spectator_transform.location.z == 20.5
+    assert spectator_transform.location.z == 1.5
     assert spectator_transform.rotation.pitch == -90.0
     assert spectator_transform.rotation.yaw == 0.0
     assert spectator_transform.rotation.roll == 0.0
@@ -244,12 +254,18 @@ def test_runtime_follow_vehicle_retries_and_recovers_when_actor_reappears() -> N
     keyboard = _FakeKeyboardInput(
         snapshots=[InputSnapshot(dx=1.0, dy=1.0, dz=0.0), InputSnapshot.zero()]
     )
+    world_adapter = CarlaWorldAdapter(world)
     runtime = CliRuntime(
         world=world,
         synchronous_mode=False,
         sleep_seconds=0.0,
         keyboard_input=keyboard,
-        follow_vehicle_id=7,
+        move_spectator=MoveSpectator(world=world_adapter, min_z=-20.0, max_z=120.0),
+        follow_vehicle_topdown=FollowVehicleTopDown(
+            world=world_adapter,
+            vehicle_id=VehicleId(7),
+            z=20.0,
+        ),
     )
 
     executed = runtime.run(max_ticks=2)
