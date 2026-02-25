@@ -4,27 +4,11 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
-from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
-
-
-class KeyboardInputProtocol(Protocol):
-    """Read one keyboard input snapshot per loop iteration."""
-
-    def read_snapshot(self) -> InputSnapshot: ...
-
-
-class MoveSpectatorProtocol(Protocol):
-    """Move spectator based on the read input snapshot."""
-
-    def move(self, snapshot: InputSnapshot) -> None: ...
-
-
-class FollowVehicleProtocol(Protocol):
-    """Adjust spectator to follow the currently tracked vehicle."""
-
-    def follow_once(self) -> bool: ...
+from vln_carla2.usecases.operator.ports.follow_vehicle import FollowVehicleProtocol
+from vln_carla2.usecases.operator.ports.keyboard_input import KeyboardInputProtocol
+from vln_carla2.usecases.operator.ports.move_spectator import MoveSpectatorProtocol
 
 
 @dataclass(slots=True)
