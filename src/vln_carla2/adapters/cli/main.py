@@ -1,4 +1,6 @@
-"""CLI entry point for slice-0 closed-loop control."""
+"""CLI entry point for stage-0 scene editor baseline."""
+
+from __future__ import annotations
 
 import argparse
 import os
@@ -6,8 +8,7 @@ import subprocess
 import sys
 from typing import Sequence
 
-from vln_carla2.app.bootstrap import run
-from vln_carla2.app.settings import Settings, SpawnPoint
+from vln_carla2.app.scene_editor_main import SceneEditorSettings, run as run_scene_editor
 from vln_carla2.infrastructure.carla.server_launcher import (
     is_carla_server_reachable,
     is_loopback_host,
@@ -18,11 +19,12 @@ from vln_carla2.infrastructure.carla.server_launcher import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    defaults = Settings()
+    defaults = SceneEditorSettings()
     default_carla_exe = os.getenv("CARLA_UE4_EXE")
-    parser = argparse.ArgumentParser(description="Run minimal CARLA control loop.")
+
+    parser = argparse.ArgumentParser(description="Run stage-0 CARLA runtime baseline.")
     parser.add_argument("--host", default=defaults.host, help="CARLA host")
-    parser.add_argument("--port", type=int, default=defaults.port, help="CARLA port")
+    parser.add_argument("--port", type=int, default=defaults.port, help="CARLA RPC port")
     parser.add_argument(
         "--timeout-seconds",
         type=float,
@@ -31,58 +33,44 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--map-name", default=defaults.map_name, help="CARLA map name")
     parser.add_argument(
+        "--mode",
+        choices=("sync", "async"),
+        default="sync",
+        help="Runtime mode: sync uses world.tick, async uses world.wait_for_tick",
+    )
+    parser.add_argument(
         "--fixed-delta-seconds",
         type=float,
         default=defaults.fixed_delta_seconds,
-        help="Synchronous simulation step time",
+        help="Fixed delta time used in sync mode",
+    )
+    parser.add_argument(
+        "--tick-sleep-seconds",
+        type=float,
+        default=defaults.tick_sleep_seconds,
+        help="Sleep duration between ticks (sync mode only)",
     )
     parser.add_argument(
         "--render-mode",
         choices=("normal", "no-rendering"),
-        default=defaults.render_mode,
-        help=(
-            "Render computation mode for the run: normal (default), "
-            "no-rendering."
-        ),
+        default="normal",
+        help="World setting for rendering computation",
     )
     parser.add_argument(
         "--window-mode",
         choices=("onscreen", "offscreen"),
         default=None,
-        help=(
-            "Window mode for launched CARLA server: onscreen (default), "
-            "offscreen"
-        ),
-    )
-    parser.add_argument(
-        "--steps", type=int, default=defaults.steps, help="Control loop iterations"
-    )
-    parser.add_argument(
-        "--target-speed-mps",
-        type=float,
-        default=defaults.target_speed_mps,
-        help="Target speed in m/s",
-    )
-    parser.add_argument(
-        "--vehicle-blueprint",
-        default=defaults.vehicle_blueprint,
-        help="Blueprint filter, e.g. vehicle.tesla.model3",
-    )
-    parser.add_argument("--spawn-x", type=float, default=defaults.spawn.x, help="Spawn x")
-    parser.add_argument("--spawn-y", type=float, default=defaults.spawn.y, help="Spawn y")
-    parser.add_argument("--spawn-z", type=float, default=defaults.spawn.z, help="Spawn z")
-    parser.add_argument(
-        "--spawn-yaw", type=float, default=defaults.spawn.yaw, help="Spawn yaw"
+        help="Window mode for launched CARLA server",
     )
     parser.add_argument(
         "--launch-carla",
         action="store_true",
-        help="Launch local CarlaUE4 before running the control loop",
+        help="Launch local CarlaUE4 before running",
     )
     parser.add_argument(
         "--reuse-existing-carla",
         action="store_true",
-        help="Reuse running CARLA on host:port instead of failing when --launch-carla is set",
+        help="Reuse running CARLA on host:port instead of failing",
     )
     parser.add_argument(
         "--carla-exe",
@@ -118,9 +106,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     launched_process: subprocess.Popen[bytes] | None = None
-    render_mode = args.render_mode
-    no_rendering_mode = render_mode == "no-rendering"
+
+    no_rendering_mode = args.render_mode == "no-rendering"
     offscreen_mode = args.window_mode == "offscreen"
+    synchronous_mode = args.mode == "sync"
 
     if offscreen_mode and not args.launch_carla:
         print(
@@ -149,9 +138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 2
-            print(
-                f"[INFO] reusing existing CARLA on {args.host}:{args.port}"
-            )
+            print(f"[INFO] reusing existing CARLA on {args.host}:{args.port}")
         else:
             if not args.carla_exe:
                 print(
@@ -188,23 +175,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"[ERROR] failed to launch CARLA server: {exc}", file=sys.stderr)
                 return 1
 
-    settings = Settings(
+    settings = SceneEditorSettings(
         host=args.host,
         port=args.port,
         timeout_seconds=args.timeout_seconds,
         map_name=args.map_name,
+        synchronous_mode=synchronous_mode,
         fixed_delta_seconds=args.fixed_delta_seconds,
-        render_mode=render_mode,
-        steps=args.steps,
-        target_speed_mps=args.target_speed_mps,
-        vehicle_blueprint=args.vehicle_blueprint,
-        spawn=SpawnPoint(x=args.spawn_x, y=args.spawn_y, z=args.spawn_z, yaw=args.spawn_yaw),
+        no_rendering_mode=no_rendering_mode,
+        tick_sleep_seconds=args.tick_sleep_seconds,
     )
 
     try:
-        result = run(settings)
+        run_scene_editor(settings)
+    except KeyboardInterrupt:
+        print("[INFO] interrupted by Ctrl+C")
     except Exception as exc:
-        print(f"[ERROR] control loop failed: {exc}", file=sys.stderr)
+        print(f"[ERROR] runtime failed: {exc}", file=sys.stderr)
         return 1
     finally:
         if launched_process is not None and not args.keep_carla_server:
@@ -216,11 +203,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     file=sys.stderr,
                 )
 
-    print(
-        "[INFO] loop finished "
-        f"steps={result.executed_steps} last_frame={result.last_frame} "
-        f"last_speed_mps={result.last_speed_mps:.3f} avg_speed_mps={result.avg_speed_mps:.3f}"
-    )
+    print(f"[INFO] runtime stopped mode={args.mode} host={args.host} port={args.port}")
     return 0
 
 
