@@ -19,6 +19,7 @@ from vln_carla2.infrastructure.carla.server_launcher import (
 
 
 def build_parser() -> argparse.ArgumentParser:
+    _load_env_from_dotenv()
     defaults = SceneEditorSettings()
     default_carla_exe = os.getenv("CARLA_UE4_EXE")
 
@@ -42,13 +43,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--fixed-delta-seconds",
         type=float,
         default=defaults.fixed_delta_seconds,
-        help="Fixed delta time used in sync mode",
+        help="Fixed delta time used in sync mode（每次 world.tick() 前进多少“模拟时间”）",
     )
     parser.add_argument(
         "--tick-sleep-seconds",
         type=float,
         default=defaults.tick_sleep_seconds,
-        help="Sleep duration between ticks (sync mode only)",
+        help="Sleep duration between ticks (sync mode only)（每次 tick 后 time.sleep(...) 多久）",
     )
     parser.add_argument(
         "--render-mode",
@@ -75,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--carla-exe",
         default=default_carla_exe,
-        help="Path to CarlaUE4 executable (or env CARLA_UE4_EXE)",
+        help="Path to CarlaUE4 executable (or set CARLA_UE4_EXE in .env)",
     )
     parser.add_argument(
         "--carla-startup-timeout-seconds",
@@ -205,6 +206,30 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print(f"[INFO] runtime stopped mode={args.mode} host={args.host} port={args.port}")
     return 0
+
+
+def _load_env_from_dotenv(path: str = ".env") -> None:
+    if not os.path.exists(path):
+        return
+
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if not key or key in os.environ:
+                    continue
+
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+                    value = value[1:-1]
+                os.environ[key] = value
+    except OSError:
+        return
 
 
 if __name__ == "__main__":

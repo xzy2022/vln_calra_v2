@@ -1,8 +1,31 @@
 from typing import Any
+from pathlib import Path
 
 import pytest
 
 from vln_carla2.adapters.cli import main as cli_main
+
+
+def test_build_parser_uses_carla_exe_from_env(monkeypatch) -> None:
+    monkeypatch.setattr(cli_main, "_load_env_from_dotenv", lambda: None)
+    monkeypatch.setenv("CARLA_UE4_EXE", "C:/CARLA/CarlaUE4.exe")
+
+    parser = cli_main.build_parser()
+    args = parser.parse_args([])
+
+    assert args.carla_exe == "C:/CARLA/CarlaUE4.exe"
+
+
+def test_load_env_from_dotenv_reads_carla_exe(monkeypatch) -> None:
+    dotenv = Path(".env.test.cli")
+    dotenv.write_text("CARLA_UE4_EXE=C:/CARLA/FromDotEnv.exe\n", encoding="utf-8")
+    monkeypatch.delenv("CARLA_UE4_EXE", raising=False)
+
+    try:
+        cli_main._load_env_from_dotenv(str(dotenv))
+        assert cli_main.os.getenv("CARLA_UE4_EXE") == "C:/CARLA/FromDotEnv.exe"
+    finally:
+        dotenv.unlink(missing_ok=True)
 
 
 def test_main_passes_sync_mode_settings(monkeypatch) -> None:
