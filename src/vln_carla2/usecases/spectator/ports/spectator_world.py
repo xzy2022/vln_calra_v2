@@ -1,42 +1,17 @@
-"""Spectator world port."""
+"""Backward-compatible combined spectator world port.
+
+Prefer using split ports:
+- SpectatorCameraPort
+- VehiclePosePort
+"""
 
 from typing import Protocol
 
-from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.usecases.spectator.ports.spectator_camera import SpectatorCameraPort
+from vln_carla2.usecases.spectator.ports.vehicle_pose import VehiclePosePort
 
 
-class SpectatorLocation(Protocol):
-    """Location-like object with mutable XYZ coordinates."""
+class SpectatorWorld(SpectatorCameraPort, VehiclePosePort, Protocol):
+    """Compatibility protocol combining camera + vehicle pose ports."""
 
-    x: float
-    y: float
-    z: float
-
-
-class SpectatorRotation(Protocol):
-    """Rotation-like object with mutable Euler angles."""
-
-    pitch: float
-    yaw: float
-    roll: float
-
-
-class SpectatorTransform(Protocol):
-    """Transform-like object exposing location and rotation."""
-
-    location: SpectatorLocation
-    rotation: SpectatorRotation
-
-
-class SpectatorWorld(Protocol):
-    """Port for spectator transform read/write."""
-
-    def get_spectator_transform(self) -> SpectatorTransform:
-        ...
-
-    def set_spectator_transform(self, transform: SpectatorTransform) -> None:
-        ...
-
-    def get_vehicle_transform(self, vehicle_id: VehicleId) -> SpectatorTransform | None:
-        """Return vehicle transform or None when actor is missing."""
-        ...
+    pass

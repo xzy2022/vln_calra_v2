@@ -41,7 +41,7 @@ class _FakeWorld:
         self._spectator_transform = transform
         self.set_calls += 1
 
-    def get_vehicle_transform(self, vehicle_id: VehicleId) -> _Transform | None:
+    def get_vehicle_transform(self, vehicle_id: int) -> _Transform | None:
         return self._vehicle_transform
 
 
@@ -56,7 +56,12 @@ def test_follow_vehicle_topdown_updates_xy_and_locks_rotation() -> None:
             rotation=_Rotation(pitch=0.0, yaw=80.0, roll=0.0),
         ),
     )
-    usecase = FollowVehicleTopDown(world=world, vehicle_id=VehicleId(7), z=20.0)
+    usecase = FollowVehicleTopDown(
+        spectator_camera=world,
+        vehicle_pose=world,
+        vehicle_id=VehicleId(7),
+        z=20.0,
+    )
 
     followed = usecase.follow_once()
 
@@ -79,7 +84,12 @@ def test_follow_vehicle_topdown_returns_false_when_vehicle_missing() -> None:
         ),
         vehicle_transform=None,
     )
-    usecase = FollowVehicleTopDown(world=world, vehicle_id=VehicleId(9), z=20.0)
+    usecase = FollowVehicleTopDown(
+        spectator_camera=world,
+        vehicle_pose=world,
+        vehicle_id=VehicleId(9),
+        z=20.0,
+    )
 
     followed = usecase.follow_once()
 

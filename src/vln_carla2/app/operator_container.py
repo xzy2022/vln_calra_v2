@@ -4,24 +4,24 @@ from dataclasses import dataclass
 from typing import Any
 
 from vln_carla2.adapters.cli.keyboard_input_windows import KeyboardInputWindows
-from vln_carla2.adapters.cli.runtime import CliRuntime
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.infrastructure.carla.vehicle_catalog_adapter import CarlaVehicleCatalogAdapter
 from vln_carla2.infrastructure.carla.vehicle_resolver_adapter import CarlaVehicleResolverAdapter
 from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
-from vln_carla2.usecases.spectator.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
+from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.operator.list_vehicles import ListVehicles
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
+from vln_carla2.usecases.operator.run_operator_loop import RunOperatorLoop
 from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
+from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
 
 
 @dataclass(slots=True)
 class OperatorContainer:
     """Built runtime dependencies for operator-facing loop."""
 
-    runtime: CliRuntime
+    runtime: RunOperatorLoop
     list_vehicles: ListVehicles
     spawn_vehicle: SpawnVehicle
     resolve_vehicle_ref: ResolveVehicleRef
@@ -60,12 +60,13 @@ def build_operator_container(
         )
         if follow_vehicle_id is not None:
             follow_vehicle_topdown = FollowVehicleTopDown(
-                world=world_adapter,
+                spectator_camera=world_adapter,
+                vehicle_pose=world_adapter,
                 vehicle_id=VehicleId(follow_vehicle_id),
                 z=spectator_initial_z,
             )
 
-    runtime = CliRuntime(
+    runtime = RunOperatorLoop(
         world=world,
         synchronous_mode=synchronous_mode,
         sleep_seconds=sleep_seconds,

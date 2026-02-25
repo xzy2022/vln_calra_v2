@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from vln_carla2.app.carla_session import CarlaSessionConfig, managed_carla_session
 from vln_carla2.app.operator_container import build_operator_container
-from vln_carla2.adapters.cli.runtime import CliRuntime
+from vln_carla2.usecases.operator.run_operator_loop import RunOperatorLoop
 
 
 @dataclass(slots=True)
@@ -42,7 +42,7 @@ class SceneEditorSettings:
 class RunSceneEditorLoop:
     """Stage-1 use case: run tick loop with spectator controls."""
 
-    runtime: CliRuntime
+    runtime: RunOperatorLoop
 
     def run(self, *, max_ticks: int | None = None) -> int:
         return self.runtime.run(max_ticks=max_ticks)

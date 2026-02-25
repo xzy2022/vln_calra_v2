@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from vln_carla2.adapters.cli.runtime import CliRuntime
+from vln_carla2.adapters.cli.runtime import RunOperatorLoop
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
 from vln_carla2.usecases.spectator.follow_vehicle_topdown import FollowVehicleTopDown
@@ -119,10 +119,10 @@ class _FakeMoveSpectator:
 def test_runtime_runs_sync_loop(monkeypatch) -> None:
     sleep_calls: list[float] = []
     world = _FakeWorld()
-    runtime = CliRuntime(world=world, synchronous_mode=True, sleep_seconds=0.01)
+    runtime = RunOperatorLoop(world=world, synchronous_mode=True, sleep_seconds=0.01)
 
     monkeypatch.setattr(
-        "vln_carla2.adapters.cli.runtime.time.sleep",
+        "vln_carla2.usecases.operator.run_operator_loop.time.sleep",
         lambda seconds: sleep_calls.append(seconds),
     )
 
@@ -137,10 +137,10 @@ def test_runtime_runs_sync_loop(monkeypatch) -> None:
 def test_runtime_runs_async_loop(monkeypatch) -> None:
     sleep_calls: list[float] = []
     world = _FakeWorld()
-    runtime = CliRuntime(world=world, synchronous_mode=False, sleep_seconds=0.02)
+    runtime = RunOperatorLoop(world=world, synchronous_mode=False, sleep_seconds=0.02)
 
     monkeypatch.setattr(
-        "vln_carla2.adapters.cli.runtime.time.sleep",
+        "vln_carla2.usecases.operator.run_operator_loop.time.sleep",
         lambda seconds: sleep_calls.append(seconds),
     )
 
@@ -158,7 +158,7 @@ def test_runtime_handles_keyboard_delta_before_tick() -> None:
         snapshots=[InputSnapshot(dx=1.0, dy=0.0, dz=0.5), InputSnapshot.zero()]
     )
     move_spectator = _FakeMoveSpectator()
-    runtime = CliRuntime(
+    runtime = RunOperatorLoop(
         world=world,
         synchronous_mode=False,
         sleep_seconds=0.0,
@@ -188,14 +188,15 @@ def test_runtime_follow_vehicle_overrides_keyboard_when_actor_exists() -> None:
         snapshots=[InputSnapshot(dx=2.0, dy=3.0, dz=1.0), InputSnapshot.zero()]
     )
     world_adapter = CarlaWorldAdapter(world)
-    runtime = CliRuntime(
+    runtime = RunOperatorLoop(
         world=world,
         synchronous_mode=False,
         sleep_seconds=0.0,
         keyboard_input=keyboard,
         move_spectator=MoveSpectator(world=world_adapter, min_z=-20.0, max_z=120.0),
         follow_vehicle_topdown=FollowVehicleTopDown(
-            world=world_adapter,
+            spectator_camera=world_adapter,
+            vehicle_pose=world_adapter,
             vehicle_id=VehicleId(42),
             z=20.0,
         ),
@@ -217,14 +218,15 @@ def test_runtime_follow_vehicle_falls_back_to_keyboard_when_actor_missing() -> N
     world = _FakeWorldWithSpectator()
     keyboard = _FakeKeyboardInput(snapshots=[InputSnapshot(dx=1.0, dy=-2.0, dz=0.5)])
     world_adapter = CarlaWorldAdapter(world)
-    runtime = CliRuntime(
+    runtime = RunOperatorLoop(
         world=world,
         synchronous_mode=False,
         sleep_seconds=0.0,
         keyboard_input=keyboard,
         move_spectator=MoveSpectator(world=world_adapter, min_z=-20.0, max_z=120.0),
         follow_vehicle_topdown=FollowVehicleTopDown(
-            world=world_adapter,
+            spectator_camera=world_adapter,
+            vehicle_pose=world_adapter,
             vehicle_id=VehicleId(999),
             z=20.0,
         ),
@@ -255,14 +257,15 @@ def test_runtime_follow_vehicle_retries_and_recovers_when_actor_reappears() -> N
         snapshots=[InputSnapshot(dx=1.0, dy=1.0, dz=0.0), InputSnapshot.zero()]
     )
     world_adapter = CarlaWorldAdapter(world)
-    runtime = CliRuntime(
+    runtime = RunOperatorLoop(
         world=world,
         synchronous_mode=False,
         sleep_seconds=0.0,
         keyboard_input=keyboard,
         move_spectator=MoveSpectator(world=world_adapter, min_z=-20.0, max_z=120.0),
         follow_vehicle_topdown=FollowVehicleTopDown(
-            world=world_adapter,
+            spectator_camera=world_adapter,
+            vehicle_pose=world_adapter,
             vehicle_id=VehicleId(7),
             z=20.0,
         ),

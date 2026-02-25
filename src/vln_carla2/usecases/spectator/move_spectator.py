@@ -6,14 +6,14 @@ from dataclasses import dataclass
 
 from vln_carla2.domain.services.spectator_rules import clamp_z
 from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
-from vln_carla2.usecases.spectator.ports.spectator_world import SpectatorWorld
+from vln_carla2.usecases.spectator.ports.spectator_camera import SpectatorCameraPort
 
 
 @dataclass(slots=True)
 class MoveSpectator:
     """Read spectator transform, add delta, then write it back."""
 
-    world: SpectatorWorld
+    world: SpectatorCameraPort
     min_z: float | None = None
     max_z: float | None = None
 

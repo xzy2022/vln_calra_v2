@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from vln_carla2.usecases.spectator.ports.spectator_world import SpectatorTransform
+from vln_carla2.usecases.spectator.ports.spectator_transform import SpectatorTransform
 
 
 class SpectatorCameraPort(Protocol):

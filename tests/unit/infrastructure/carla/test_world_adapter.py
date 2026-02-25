@@ -68,7 +68,7 @@ def test_world_adapter_reads_vehicle_transform_when_actor_exists() -> None:
         )
     )
 
-    got = adapter.get_vehicle_transform(VehicleId(42))
+    got = adapter.get_vehicle_transform(42)
 
     assert got is actor_transform
 
