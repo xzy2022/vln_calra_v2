@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vln_carla2.domain.services.spectator_rules import clamp_z
-from vln_carla2.usecases.input_snapshot import InputSnapshot
-from vln_carla2.usecases.ports.spectator_world import SpectatorWorld
+from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
+from vln_carla2.usecases.spectator.ports.spectator_world import SpectatorWorld
 
 
 @dataclass(slots=True)

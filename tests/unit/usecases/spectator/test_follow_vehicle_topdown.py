@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from vln_carla2.domain.model.vehicle_id import VehicleId
-from vln_carla2.usecases.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.spectator.follow_vehicle_topdown import FollowVehicleTopDown
 
 
 @dataclass

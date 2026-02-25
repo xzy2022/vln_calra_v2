@@ -8,7 +8,7 @@ from vln_carla2.domain.services.simple_speed_controller import SimpleSpeedContro
 from vln_carla2.infrastructure.carla.actuator_raw import CarlaRawMotionActuator
 from vln_carla2.infrastructure.carla.clock import CarlaClock
 from vln_carla2.infrastructure.carla.state_reader import CarlaVehicleStateReader
-from vln_carla2.usecases.run_control_loop import RunControlLoop
+from vln_carla2.usecases.control.run_control_loop import RunControlLoop
 
 
 class StdoutLogger:

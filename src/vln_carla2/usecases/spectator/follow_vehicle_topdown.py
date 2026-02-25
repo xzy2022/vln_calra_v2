@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vln_carla2.domain.model.vehicle_id import VehicleId
-from vln_carla2.usecases.ports.spectator_world import SpectatorWorld
+from vln_carla2.usecases.spectator.ports.spectator_world import SpectatorWorld
 
 
 @dataclass(slots=True)

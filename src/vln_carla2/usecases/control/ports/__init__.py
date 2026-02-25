@@ -1,9 +1,8 @@
-"""Port interfaces for use cases."""
+"""Ports for control-track use cases."""
 
 from .clock import Clock
 from .logger import Logger
 from .motion_actuator import MotionActuator
-from .spectator_world import SpectatorWorld
 from .vehicle_state_reader import VehicleStateReader
 
 __all__ = [
@@ -11,5 +10,4 @@ __all__ = [
     "MotionActuator",
     "Clock",
     "Logger",
-    "SpectatorWorld",
 ]

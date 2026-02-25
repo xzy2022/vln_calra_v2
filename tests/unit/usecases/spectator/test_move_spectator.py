@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from vln_carla2.usecases.input_snapshot import InputSnapshot
-from vln_carla2.usecases.move_spectator import MoveSpectator
+from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
+from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
 
 
 @dataclass

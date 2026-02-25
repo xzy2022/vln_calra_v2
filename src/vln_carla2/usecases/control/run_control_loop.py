@@ -6,10 +6,10 @@ from typing import Protocol
 from vln_carla2.domain.model.simple_command import ControlCommand, TargetSpeedCommand
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.domain.model.vehicle_state import VehicleState
-from vln_carla2.usecases.ports.clock import Clock
-from vln_carla2.usecases.ports.logger import Logger
-from vln_carla2.usecases.ports.motion_actuator import MotionActuator
-from vln_carla2.usecases.ports.vehicle_state_reader import VehicleStateReader
+from vln_carla2.usecases.control.ports.clock import Clock
+from vln_carla2.usecases.control.ports.logger import Logger
+from vln_carla2.usecases.control.ports.motion_actuator import MotionActuator
+from vln_carla2.usecases.control.ports.vehicle_state_reader import VehicleStateReader
 
 
 class SpeedController(Protocol):
@@ -71,4 +71,3 @@ class RunControlLoop:
             avg_speed_mps=avg_speed_mps,
             last_frame=last_frame,
         )
-

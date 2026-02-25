@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from vln_carla2.domain.model.simple_command import ControlCommand, TargetSpeedCommand
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.domain.model.vehicle_state import VehicleState
-from vln_carla2.usecases.run_control_loop import RunControlLoop
+from vln_carla2.usecases.control.run_control_loop import RunControlLoop
 
 
 def _state(frame: int, speed_mps: float) -> VehicleState:

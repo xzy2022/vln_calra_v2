@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from vln_carla2.usecases.input_snapshot import InputSnapshot
+from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
 
 
 class KeyboardInputProtocol(Protocol):

@@ -6,7 +6,7 @@ import ctypes
 from dataclasses import dataclass, field
 from typing import Any
 
-from vln_carla2.usecases.input_snapshot import InputSnapshot
+from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
 
 VK_LEFT = 0x25
 VK_UP = 0x26

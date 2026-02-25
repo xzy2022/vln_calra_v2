@@ -7,7 +7,7 @@ from vln_carla2.app.control_container import build_control_container
 from vln_carla2.app.settings import Settings
 from vln_carla2.domain.model.simple_command import TargetSpeedCommand
 from vln_carla2.infrastructure.carla.spawner import spawn_vehicle
-from vln_carla2.usecases.run_control_loop import LoopResult
+from vln_carla2.usecases.control.run_control_loop import LoopResult
 
 
 def run(settings: Settings) -> LoopResult:

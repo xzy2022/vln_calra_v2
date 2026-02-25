@@ -5,7 +5,7 @@ from typing import Any
 
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.domain.model.vehicle_state import VehicleState
-from vln_carla2.usecases.ports.vehicle_state_reader import VehicleStateReader
+from vln_carla2.usecases.control.ports.vehicle_state_reader import VehicleStateReader
 
 
 class CarlaVehicleStateReader(VehicleStateReader):
@@ -41,4 +41,3 @@ class CarlaVehicleStateReader(VehicleStateReader):
         if actor is None:
             raise RuntimeError(f"Vehicle actor not found: id={vehicle_id.value}")
         return actor
-

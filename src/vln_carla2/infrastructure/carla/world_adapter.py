@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from vln_carla2.domain.model.vehicle_id import VehicleId
-from vln_carla2.usecases.ports.spectator_world import SpectatorTransform
+from vln_carla2.usecases.spectator.ports.spectator_world import SpectatorTransform
 
 
 class CarlaWorldAdapter:

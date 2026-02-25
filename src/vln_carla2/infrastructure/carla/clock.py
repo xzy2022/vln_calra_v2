@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from vln_carla2.usecases.ports.clock import Clock
+from vln_carla2.usecases.control.ports.clock import Clock
 
 
 class CarlaClock(Clock):
@@ -13,4 +13,3 @@ class CarlaClock(Clock):
 
     def tick(self) -> int:
         return int(self._world.tick())
-

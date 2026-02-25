@@ -10,11 +10,11 @@ from vln_carla2.infrastructure.carla.vehicle_catalog_adapter import CarlaVehicle
 from vln_carla2.infrastructure.carla.vehicle_resolver_adapter import CarlaVehicleResolverAdapter
 from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
+from vln_carla2.usecases.spectator.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
 from vln_carla2.usecases.operator.list_vehicles import ListVehicles
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
-from vln_carla2.usecases.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.move_spectator import MoveSpectator
 
 
 @dataclass(slots=True)

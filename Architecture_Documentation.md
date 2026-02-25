@@ -1,10 +1,9 @@
-
 ## 同心圆模型
 
 [[domain]]  核心业务模型：实体、值对象、聚合、领域服务。
 	`domain` 需要外部的帮助，`domain/ports/` 以待实现的接口范式规范了 `domain` 可以调用外部的内容。
 [[usecases]]  应用层：用例（应用服务）、编排、应用级端口。
-	`usecases` 也需要外层的帮助，`usecases/ports/` 也以待实现的接口范式规范了 `usecases` 可以调用外部的内容。
+	`usecases` 也需要外层的帮助，`usecases/<slice>/ports/` 也以待实现的接口范式规范了 `usecases` 可以调用外部的内容。
 [[adapters]]  主适配器（驱动侧）：HTTP、GraphQL、CLI、MQ 消费者、表现层
 [[infrastructure]]  次适配器（被驱动侧）：数据库、缓存、MQ 生产者、外部客户端
 [[app]]  仅组合根：依赖注入、配置、启动仅组合根：依赖注入、配置、启动
@@ -15,4 +14,3 @@
 [[integration]]
 [[fixtures]]
 [[conftest.py]]
-

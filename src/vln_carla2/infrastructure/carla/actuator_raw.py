@@ -5,7 +5,7 @@ from typing import Any
 from vln_carla2.domain.model.simple_command import ControlCommand
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.infrastructure.carla.types import require_carla
-from vln_carla2.usecases.ports.motion_actuator import MotionActuator
+from vln_carla2.usecases.control.ports.motion_actuator import MotionActuator
 
 
 class CarlaRawMotionActuator(MotionActuator):
@@ -33,4 +33,3 @@ class CarlaRawMotionActuator(MotionActuator):
         if actor is None:
             raise RuntimeError(f"Vehicle actor not found: id={vehicle_id.value}")
         return actor
-

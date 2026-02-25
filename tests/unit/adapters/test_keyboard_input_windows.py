@@ -10,7 +10,7 @@ from vln_carla2.adapters.cli.keyboard_input_windows import (
     VK_UP,
     KeyboardInputWindows,
 )
-from vln_carla2.usecases.input_snapshot import InputSnapshot
+from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
 
 
 class _FakeUser32:

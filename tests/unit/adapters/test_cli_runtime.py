@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from vln_carla2.adapters.cli.runtime import CliRuntime
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
-from vln_carla2.usecases.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.input_snapshot import InputSnapshot
-from vln_carla2.usecases.move_spectator import MoveSpectator
+from vln_carla2.usecases.spectator.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
+from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
 
 
 @dataclass
