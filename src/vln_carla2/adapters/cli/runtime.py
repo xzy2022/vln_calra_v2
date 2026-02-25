@@ -19,6 +19,8 @@ class CliRuntime:
     synchronous_mode: bool
     sleep_seconds: float
     spectator_initial_z: float = 20.0
+    spectator_min_z: float = -20.0
+    spectator_max_z: float = 120.0
     keyboard_input: KeyboardInputWindows | None = None
     move_spectator: MoveSpectator | None = None
     _world_adapter: CarlaWorldAdapter | None = field(init=False, default=None, repr=False)
@@ -27,7 +29,11 @@ class CliRuntime:
         if hasattr(self.world, "get_spectator"):
             self._world_adapter = CarlaWorldAdapter(self.world)
             if self.move_spectator is None:
-                self.move_spectator = MoveSpectator(world=self._world_adapter)
+                self.move_spectator = MoveSpectator(
+                    world=self._world_adapter,
+                    min_z=self.spectator_min_z,
+                    max_z=self.spectator_max_z,
+                )
             if self.keyboard_input is None:
                 self.keyboard_input = KeyboardInputWindows()
             self._initialize_spectator_top_down()
@@ -69,5 +75,5 @@ class CliRuntime:
     def _handle_keyboard_once(self) -> None:
         if self.keyboard_input is None or self.move_spectator is None:
             return
-        dx, dy, dz = self.keyboard_input.read_delta()
-        self.move_spectator.move(dx=dx, dy=dy, dz=dz)
+        snapshot = self.keyboard_input.read_snapshot()
+        self.move_spectator.move(snapshot=snapshot)

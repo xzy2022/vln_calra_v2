@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from vln_carla2.adapters.cli.runtime import CliRuntime
+from vln_carla2.usecases.input_snapshot import InputSnapshot
 
 
 @dataclass
@@ -66,22 +67,22 @@ class _FakeWorldWithSpectator(_FakeWorld):
 
 
 class _FakeKeyboardInput:
-    def __init__(self, deltas: list[tuple[float, float, float]]) -> None:
-        self._deltas = deltas
+    def __init__(self, snapshots: list[InputSnapshot]) -> None:
+        self._snapshots = snapshots
         self._index = 0
 
-    def read_delta(self) -> tuple[float, float, float]:
-        delta = self._deltas[self._index]
+    def read_snapshot(self) -> InputSnapshot:
+        delta = self._snapshots[self._index]
         self._index += 1
         return delta
 
 
 class _FakeMoveSpectator:
     def __init__(self) -> None:
-        self.calls: list[tuple[float, float, float]] = []
+        self.calls: list[InputSnapshot] = []
 
-    def move(self, dx: float, dy: float, dz: float) -> None:
-        self.calls.append((dx, dy, dz))
+    def move(self, snapshot: InputSnapshot) -> None:
+        self.calls.append(snapshot)
 
 
 def test_runtime_runs_sync_loop(monkeypatch) -> None:
@@ -122,7 +123,9 @@ def test_runtime_runs_async_loop(monkeypatch) -> None:
 
 def test_runtime_handles_keyboard_delta_before_tick() -> None:
     world = _FakeWorldWithSpectator()
-    keyboard = _FakeKeyboardInput(deltas=[(1.0, 0.0, 0.5), (0.0, 0.0, 0.0)])
+    keyboard = _FakeKeyboardInput(
+        snapshots=[InputSnapshot(dx=1.0, dy=0.0, dz=0.5), InputSnapshot.zero()]
+    )
     move_spectator = _FakeMoveSpectator()
     runtime = CliRuntime(
         world=world,
@@ -142,4 +145,4 @@ def test_runtime_handles_keyboard_delta_before_tick() -> None:
 
     assert executed == 2
     assert world.wait_for_tick_calls == 2
-    assert move_spectator.calls == [(1.0, 0.0, 0.5), (0.0, 0.0, 0.0)]
+    assert move_spectator.calls == [InputSnapshot(dx=1.0, dy=0.0, dz=0.5), InputSnapshot.zero()]

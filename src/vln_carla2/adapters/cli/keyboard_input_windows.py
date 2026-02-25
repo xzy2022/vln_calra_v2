@@ -6,6 +6,8 @@ import ctypes
 from dataclasses import dataclass, field
 from typing import Any
 
+from vln_carla2.usecases.input_snapshot import InputSnapshot
+
 VK_LEFT = 0x25
 VK_UP = 0x26
 VK_RIGHT = 0x27
@@ -34,9 +36,9 @@ class KeyboardInputWindows:
     def __post_init__(self) -> None:
         self._user32 = _load_user32()
 
-    def read_delta(self) -> tuple[float, float, float]:
+    def read_snapshot(self) -> InputSnapshot:
         if self._user32 is None:
-            return (0.0, 0.0, 0.0)
+            return InputSnapshot.zero()
 
         up = self._is_pressed(VK_UP)
         down = self._is_pressed(VK_DOWN)
@@ -48,7 +50,7 @@ class KeyboardInputWindows:
         dx = self.xy_step if up and not down else -self.xy_step if down and not up else 0.0
         dy = self.xy_step if right and not left else -self.xy_step if left and not right else 0.0
         dz = self.z_step if plus and not minus else -self.z_step if minus and not plus else 0.0
-        return (dx, dy, dz)
+        return InputSnapshot(dx=dx, dy=dy, dz=dz)
 
     def _is_pressed(self, vk_code: int) -> bool:
         user32 = self._user32

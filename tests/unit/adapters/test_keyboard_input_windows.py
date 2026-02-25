@@ -10,6 +10,7 @@ from vln_carla2.adapters.cli.keyboard_input_windows import (
     VK_UP,
     KeyboardInputWindows,
 )
+from vln_carla2.usecases.input_snapshot import InputSnapshot
 
 
 class _FakeUser32:
@@ -24,31 +25,28 @@ def test_keyboard_input_maps_arrow_and_plus_keys() -> None:
     reader = KeyboardInputWindows(xy_step=1.5, z_step=2.0)
     reader._user32 = _FakeUser32({VK_UP, VK_RIGHT, VK_OEM_PLUS})
 
-    dx, dy, dz = reader.read_delta()
+    snapshot = reader.read_snapshot()
 
-    assert dx == 1.5
-    assert dy == 1.5
-    assert dz == 2.0
+    assert snapshot.dx == 1.5
+    assert snapshot.dy == 1.5
+    assert snapshot.dz == 2.0
 
 
 def test_keyboard_input_maps_down_left_and_numpad_minus() -> None:
     reader = KeyboardInputWindows(xy_step=1.0, z_step=0.5)
     reader._user32 = _FakeUser32({VK_DOWN, VK_LEFT, VK_SUBTRACT})
 
-    dx, dy, dz = reader.read_delta()
+    snapshot = reader.read_snapshot()
 
-    assert dx == -1.0
-    assert dy == -1.0
-    assert dz == -0.5
+    assert snapshot.dx == -1.0
+    assert snapshot.dy == -1.0
+    assert snapshot.dz == -0.5
 
 
 def test_keyboard_input_conflicting_keys_cancel_each_axis() -> None:
     reader = KeyboardInputWindows(xy_step=3.0, z_step=4.0)
     reader._user32 = _FakeUser32({VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_ADD, VK_SUBTRACT})
 
-    dx, dy, dz = reader.read_delta()
+    snapshot = reader.read_snapshot()
 
-    assert dx == 0.0
-    assert dy == 0.0
-    assert dz == 0.0
-
+    assert snapshot == InputSnapshot.zero()
