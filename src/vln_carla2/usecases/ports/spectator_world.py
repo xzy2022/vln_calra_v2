@@ -2,6 +2,8 @@
 
 from typing import Protocol
 
+from vln_carla2.domain.model.vehicle_id import VehicleId
+
 
 class SpectatorLocation(Protocol):
     """Location-like object with mutable XYZ coordinates."""
@@ -33,4 +35,8 @@ class SpectatorWorld(Protocol):
         ...
 
     def set_spectator_transform(self, transform: SpectatorTransform) -> None:
+        ...
+
+    def get_vehicle_transform(self, vehicle_id: VehicleId) -> SpectatorTransform | None:
+        """Return vehicle transform or None when actor is missing."""
         ...

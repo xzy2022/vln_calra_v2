@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.usecases.ports.spectator_world import SpectatorTransform
 
 
@@ -20,3 +21,9 @@ class CarlaWorldAdapter:
     def set_spectator_transform(self, transform: SpectatorTransform) -> None:
         spectator = self._world.get_spectator()
         spectator.set_transform(transform)
+
+    def get_vehicle_transform(self, vehicle_id: VehicleId) -> SpectatorTransform | None:
+        actor = self._world.get_actor(vehicle_id.value)
+        if actor is None:
+            return None
+        return actor.get_transform()

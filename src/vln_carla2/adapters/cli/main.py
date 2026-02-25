@@ -34,6 +34,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--map-name", default=defaults.map_name, help="CARLA map name")
     parser.add_argument(
+        "--follow-vehicle-id",
+        type=int,
+        default=defaults.follow_vehicle_id,
+        help="Follow spectator top-down over this vehicle id",
+    )
+    parser.add_argument(
         "--mode",
         choices=("sync", "async"),
         default="sync",
@@ -185,6 +191,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         fixed_delta_seconds=args.fixed_delta_seconds,
         no_rendering_mode=no_rendering_mode,
         tick_sleep_seconds=args.tick_sleep_seconds,
+        follow_vehicle_id=args.follow_vehicle_id,
     )
 
     try:

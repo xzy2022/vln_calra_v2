@@ -7,7 +7,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from vln_carla2.adapters.cli.keyboard_input_windows import KeyboardInputWindows
+from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
+from vln_carla2.usecases.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.move_spectator import MoveSpectator
 
 
@@ -21,8 +23,10 @@ class CliRuntime:
     spectator_initial_z: float = 20.0
     spectator_min_z: float = -20.0
     spectator_max_z: float = 120.0
+    follow_vehicle_id: int | None = None
     keyboard_input: KeyboardInputWindows | None = None
     move_spectator: MoveSpectator | None = None
+    follow_vehicle_topdown: FollowVehicleTopDown | None = None
     _world_adapter: CarlaWorldAdapter | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
@@ -36,6 +40,12 @@ class CliRuntime:
                 )
             if self.keyboard_input is None:
                 self.keyboard_input = KeyboardInputWindows()
+            if self.follow_vehicle_topdown is None and self.follow_vehicle_id is not None:
+                self.follow_vehicle_topdown = FollowVehicleTopDown(
+                    world=self._world_adapter,
+                    vehicle_id=VehicleId(self.follow_vehicle_id),
+                    z=self.spectator_initial_z,
+                )
             self._initialize_spectator_top_down()
 
     def run(self, *, max_ticks: int | None = None) -> int:
@@ -48,6 +58,7 @@ class CliRuntime:
                 break
 
             self._handle_keyboard_once()
+            self._handle_follow_once()
             self._tick_once()
             executed_ticks += 1
             if self.synchronous_mode:
@@ -77,3 +88,8 @@ class CliRuntime:
             return
         snapshot = self.keyboard_input.read_snapshot()
         self.move_spectator.move(snapshot=snapshot)
+
+    def _handle_follow_once(self) -> None:
+        if self.follow_vehicle_topdown is None:
+            return
+        self.follow_vehicle_topdown.follow_once()

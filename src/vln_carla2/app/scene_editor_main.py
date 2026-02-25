@@ -22,6 +22,7 @@ class SceneEditorSettings:
     fixed_delta_seconds: float = 0.05
     no_rendering_mode: bool = False
     tick_sleep_seconds: float = 0.05
+    follow_vehicle_id: int | None = None
 
     def __post_init__(self) -> None:
         if self.port <= 0:
@@ -34,6 +35,8 @@ class SceneEditorSettings:
             raise ValueError("tick_sleep_seconds must be >= 0")
         if not self.map_name:
             raise ValueError("map_name must not be empty")
+        if self.follow_vehicle_id is not None and self.follow_vehicle_id <= 0:
+            raise ValueError("follow_vehicle_id must be positive when set")
 
 
 @dataclass(slots=True)
@@ -60,6 +63,7 @@ def run(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
         world=context.world,
         synchronous_mode=settings.synchronous_mode,
         sleep_seconds=settings.tick_sleep_seconds,
+        follow_vehicle_id=settings.follow_vehicle_id,
     )
     usecase = RunSceneEditorLoop(runtime=runtime)
 

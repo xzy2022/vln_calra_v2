@@ -14,6 +14,7 @@ def test_build_parser_uses_carla_exe_from_env(monkeypatch) -> None:
     args = parser.parse_args([])
 
     assert args.carla_exe == "C:/CARLA/CarlaUE4.exe"
+    assert args.follow_vehicle_id is None
 
 
 def test_load_env_from_dotenv_reads_carla_exe(monkeypatch) -> None:
@@ -63,6 +64,7 @@ def test_main_passes_sync_mode_settings(monkeypatch) -> None:
     assert captured["settings"].synchronous_mode is True
     assert captured["settings"].no_rendering_mode is True
     assert captured["settings"].tick_sleep_seconds == 0.01
+    assert captured["settings"].follow_vehicle_id is None
 
 
 def test_main_passes_async_mode_settings(monkeypatch) -> None:
@@ -77,6 +79,20 @@ def test_main_passes_async_mode_settings(monkeypatch) -> None:
 
     assert exit_code == 0
     assert captured["settings"].synchronous_mode is False
+
+
+def test_main_passes_follow_vehicle_id(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_run(settings: Any) -> None:
+        captured["settings"] = settings
+
+    monkeypatch.setattr(cli_main, "run_scene_editor", fake_run)
+
+    exit_code = cli_main.main(["--follow-vehicle-id", "42"])
+
+    assert exit_code == 0
+    assert captured["settings"].follow_vehicle_id == 42
 
 
 def test_main_launches_carla_with_offscreen_and_no_rendering(monkeypatch) -> None:
