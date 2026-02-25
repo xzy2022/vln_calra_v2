@@ -7,6 +7,8 @@ pytest-cache-files-*/
 
 tmp\*
 
+references/*
+
 Docs_Carla_UE4/*
 PythonAPI_Carla_UE4/*
 

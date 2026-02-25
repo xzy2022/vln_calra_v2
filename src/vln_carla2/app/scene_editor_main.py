@@ -1,4 +1,4 @@
-"""Composition root for stage-0 scene editor runtime."""
+"""Composition root for stage-1 scene editor runtime."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from vln_carla2.infrastructure.carla.types import require_carla
 
 @dataclass(slots=True)
 class SceneEditorSettings:
-    """Runtime configuration for the scene editor baseline."""
+    """Runtime configuration for free spectator movement baseline."""
 
     host: str = "127.0.0.1"
     port: int = 2000
@@ -45,7 +45,7 @@ class _RuntimeContext:
 
 @dataclass(slots=True)
 class RunSceneEditorLoop:
-    """Stage-0 use case: just run the runtime tick loop."""
+    """Stage-1 use case: run tick loop with spectator controls."""
 
     runtime: CliRuntime
 

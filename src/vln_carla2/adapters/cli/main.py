@@ -1,4 +1,4 @@
-"""CLI entry point for stage-0 scene editor baseline."""
+"""CLI entry point for stage-1 scene editor baseline."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     defaults = SceneEditorSettings()
     default_carla_exe = os.getenv("CARLA_UE4_EXE")
 
-    parser = argparse.ArgumentParser(description="Run stage-0 CARLA runtime baseline.")
+    parser = argparse.ArgumentParser(description="Run stage-1 CARLA runtime baseline.")
     parser.add_argument("--host", default=defaults.host, help="CARLA host")
     parser.add_argument("--port", type=int, default=defaults.port, help="CARLA RPC port")
     parser.add_argument(
