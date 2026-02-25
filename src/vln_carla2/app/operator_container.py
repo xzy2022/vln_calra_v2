@@ -6,7 +6,13 @@ from typing import Any
 from vln_carla2.adapters.cli.keyboard_input_windows import KeyboardInputWindows
 from vln_carla2.adapters.cli.runtime import CliRuntime
 from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.infrastructure.carla.vehicle_catalog_adapter import CarlaVehicleCatalogAdapter
+from vln_carla2.infrastructure.carla.vehicle_resolver_adapter import CarlaVehicleResolverAdapter
+from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
+from vln_carla2.usecases.operator.list_vehicles import ListVehicles
+from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
+from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
 from vln_carla2.usecases.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.move_spectator import MoveSpectator
 
@@ -16,6 +22,9 @@ class OperatorContainer:
     """Built runtime dependencies for operator-facing loop."""
 
     runtime: CliRuntime
+    list_vehicles: ListVehicles
+    spawn_vehicle: SpawnVehicle
+    resolve_vehicle_ref: ResolveVehicleRef
 
 
 def build_operator_container(
@@ -29,6 +38,10 @@ def build_operator_container(
     spectator_max_z: float = 120.0,
 ) -> OperatorContainer:
     """Compose operator loop dependencies and produce a runtime."""
+    vehicle_catalog = CarlaVehicleCatalogAdapter(world)
+    vehicle_spawner = CarlaVehicleSpawnerAdapter(world)
+    vehicle_resolver = CarlaVehicleResolverAdapter(world)
+
     keyboard_input = None
     move_spectator = None
     follow_vehicle_topdown = None
@@ -60,7 +73,12 @@ def build_operator_container(
         move_spectator=move_spectator,
         follow_vehicle_topdown=follow_vehicle_topdown,
     )
-    return OperatorContainer(runtime=runtime)
+    return OperatorContainer(
+        runtime=runtime,
+        list_vehicles=ListVehicles(catalog=vehicle_catalog),
+        spawn_vehicle=SpawnVehicle(spawner=vehicle_spawner),
+        resolve_vehicle_ref=ResolveVehicleRef(resolver=vehicle_resolver),
+    )
 
 
 def _initialize_spectator_top_down(*, world_adapter: CarlaWorldAdapter, initial_z: float) -> None:
