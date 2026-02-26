@@ -1,0 +1,211 @@
+from dataclasses import dataclass
+
+from vln_carla2.usecases.scene_editor.input_snapshot import EditorInputSnapshot
+from vln_carla2.usecases.scene_editor.models import EditorMode, EditorState
+from vln_carla2.usecases.scene_editor.run_scene_editor_loop import RunSceneEditorLoop
+from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
+
+
+@dataclass
+class _Snapshot:
+    frame: int
+
+
+class _FakeWorld:
+    def __init__(self) -> None:
+        self.tick_calls = 0
+        self.wait_for_tick_calls = 0
+
+    def tick(self) -> int:
+        self.tick_calls += 1
+        return self.tick_calls
+
+    def wait_for_tick(self) -> _Snapshot:
+        self.wait_for_tick_calls += 1
+        return _Snapshot(frame=100 + self.wait_for_tick_calls)
+
+
+class _FakeKeyboard:
+    def __init__(self, snapshots: list[EditorInputSnapshot]) -> None:
+        self._snapshots = list(snapshots)
+        self._index = 0
+
+    def read_snapshot(self) -> EditorInputSnapshot:
+        snapshot = self._snapshots[self._index]
+        self._index += 1
+        return snapshot
+
+
+class _FakeMoveSpectator:
+    def __init__(self) -> None:
+        self.calls: list[InputSnapshot] = []
+
+    def move(self, snapshot: InputSnapshot) -> None:
+        self.calls.append(snapshot)
+
+
+class _FakeFollower:
+    def __init__(self, results: list[bool]) -> None:
+        self.z = 0.0
+        self._results = list(results)
+        self.calls = 0
+        self.z_per_call: list[float] = []
+
+    def follow_once(self) -> bool:
+        self.calls += 1
+        self.z_per_call.append(self.z)
+        if self._results:
+            return self._results.pop(0)
+        return True
+
+
+def _make_loop(
+    *,
+    state: EditorState,
+    snapshots: list[EditorInputSnapshot],
+    follower: _FakeFollower | None = None,
+    move_spectator: _FakeMoveSpectator | None = None,
+    warnings: list[str] | None = None,
+) -> RunSceneEditorLoop:
+    world = _FakeWorld()
+    keyboard = _FakeKeyboard(snapshots)
+    return RunSceneEditorLoop(
+        world=world,
+        synchronous_mode=True,
+        sleep_seconds=0.0,
+        state=state,
+        min_follow_z=-20.0,
+        max_follow_z=120.0,
+        allow_mode_toggle=True,
+        keyboard_input=keyboard,
+        move_spectator=move_spectator,
+        follow_vehicle_topdown=follower,
+        warn_fn=(warnings.append if warnings is not None else print),
+    )
+
+
+def test_free_mode_applies_held_move_delta() -> None:
+    move = _FakeMoveSpectator()
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[EditorInputSnapshot(held_dx=1.0, held_dy=-2.0, held_dz=0.5)],
+        move_spectator=move,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert move.calls == [InputSnapshot(dx=1.0, dy=-2.0, dz=0.5)]
+
+
+def test_toggle_free_to_follow_success_moves_immediately_and_skips_free_move() -> None:
+    warnings: list[str] = []
+    move = _FakeMoveSpectator()
+    follower = _FakeFollower(results=[True])
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=7, follow_z=25.0),
+        snapshots=[
+            EditorInputSnapshot(
+                held_dx=10.0,
+                held_dy=10.0,
+                held_dz=1.0,
+                pressed_toggle_mode=True,
+            )
+        ],
+        follower=follower,
+        move_spectator=move,
+        warnings=warnings,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert loop.state.mode is EditorMode.FOLLOW
+    assert follower.calls == 1
+    assert follower.z_per_call == [25.0]
+    assert move.calls == []
+    assert warnings == []
+
+
+def test_toggle_free_to_follow_warns_and_stays_free_when_target_not_configured() -> None:
+    warnings: list[str] = []
+    move = _FakeMoveSpectator()
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[EditorInputSnapshot(held_dx=1.0, pressed_toggle_mode=True)],
+        move_spectator=move,
+        warnings=warnings,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert loop.state.mode is EditorMode.FREE
+    assert move.calls == []
+    assert len(warnings) == 1
+    assert warnings[0].startswith("[WARN]")
+
+
+def test_toggle_free_to_follow_warns_when_vehicle_missing() -> None:
+    warnings: list[str] = []
+    move = _FakeMoveSpectator()
+    follower = _FakeFollower(results=[False])
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=42, follow_z=20.0),
+        snapshots=[EditorInputSnapshot(held_dx=1.0, held_dz=1.0, pressed_toggle_mode=True)],
+        follower=follower,
+        move_spectator=move,
+        warnings=warnings,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert loop.state.mode is EditorMode.FREE
+    assert follower.calls == 1
+    assert move.calls == []
+    assert len(warnings) == 1
+    assert "actor not found" in warnings[0]
+
+
+def test_toggle_follow_to_free_stops_follow_for_current_tick() -> None:
+    follower = _FakeFollower(results=[True])
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FOLLOW, follow_vehicle_id=7, follow_z=20.0),
+        snapshots=[EditorInputSnapshot(held_dz=1.0, pressed_toggle_mode=True)],
+        follower=follower,
+        move_spectator=_FakeMoveSpectator(),
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert loop.state.mode is EditorMode.FREE
+    assert follower.calls == 0
+
+
+def test_follow_mode_applies_dz_to_follow_z_with_clamp() -> None:
+    follower = _FakeFollower(results=[True])
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FOLLOW, follow_vehicle_id=7, follow_z=119.0),
+        snapshots=[EditorInputSnapshot(held_dz=5.0)],
+        follower=follower,
+        move_spectator=_FakeMoveSpectator(),
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert loop.state.mode is EditorMode.FOLLOW
+    assert loop.state.follow_z == 120.0
+    assert follower.calls == 1
+    assert follower.z_per_call == [120.0]
+
+
+def test_follow_mode_stays_follow_when_vehicle_temporarily_missing() -> None:
+    follower = _FakeFollower(results=[False])
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FOLLOW, follow_vehicle_id=7, follow_z=20.0),
+        snapshots=[EditorInputSnapshot(held_dz=0.0)],
+        follower=follower,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert loop.state.mode is EditorMode.FOLLOW
+    assert follower.calls == 1
+

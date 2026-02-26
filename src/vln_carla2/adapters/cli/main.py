@@ -206,6 +206,8 @@ def _handle_scene_run(args: argparse.Namespace) -> int:
         offscreen_mode=args.offscreen,
         tick_sleep_seconds=args.tick_sleep_seconds,
         follow_vehicle_id=None,
+        start_in_follow_mode=False,
+        allow_mode_toggle=True,
     )
 
     if settings.offscreen_mode and not args.launch_carla:
@@ -386,6 +388,8 @@ def _handle_spectator_follow(args: argparse.Namespace) -> int:
         offscreen_mode=session_config.offscreen_mode,
         follow_vehicle_id=follow_vehicle_id,
         spectator_initial_z=args.z,
+        start_in_follow_mode=True,
+        allow_mode_toggle=False,
     )
 
     try:

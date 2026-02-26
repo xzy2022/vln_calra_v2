@@ -46,8 +46,9 @@ main
 
 ### 3.1 功能
 
-- 启动/连接 CARLA 后运行操作循环（同步/异步模式）。
+- 启动/连接 CARLA 后运行 scene editor 循环（同步/异步模式）。
 - 可选自动拉起本地 CARLA 进程。
+- 默认以 `Free` 模式运行。
 
 ### 3.2 专属参数
 
@@ -61,9 +62,19 @@ main
 - `--with-sound`：启用声音（默认 `-nosound`）
 - `--keep-carla-server`：命令退出时不关闭由本命令启动的 CARLA
 
-### 3.3 说明
+### 3.3 运行时交互（键盘）
+
+- `↑/↓`：调整 spectator X 方向（按住持续生效）
+- `←/→`：调整 spectator Y 方向（按住持续生效）
+- `+/-`：
+  - `Free` 模式：直接调整 spectator Z
+  - `Follow` 模式：调整 `follow_z`（跟随高度）
+- `/`：`Free` 与 `Follow` 之间切换（边沿触发，按住不重复切换）
+
+### 3.4 说明
 
 - `scene run` 不再支持 `--follow` 与 `--follow-vehicle-id`。
+- `scene run` 默认未绑定跟随目标；若按 `/` 尝试进入 Follow，会告警并保持 `Free` 模式。
 
 ## 4. operator run（大闭环编排）
 
@@ -148,6 +159,8 @@ main
 
 - 启动持续跟随循环，将 spectator 视角持续绑定到目标车辆上方俯视。
 - 运行直到 `Ctrl+C`。
+- 内部使用 scene editor 编排层并锁定为 `Follow` 模式（不允许 `/` 切回 `Free`）。
+- 运行中可用 `+/-` 动态调整跟随高度（`follow_z`）。
 
 ### 7.2 参数
 
@@ -196,26 +209,75 @@ main
 
 ## 11. 示例命令
 
-### 11.1 启动场景运行并拉起 CARLA
+### 11.1 激活环境
+
+```bash
+conda activate vln_carla_py312
+```
+
+### 11.2 启动 scene run（可交互移动）
 
 ```bash
 python -m vln_carla2.adapters.cli.main scene run --launch-carla --host 127.0.0.1 --port 2000 --mode sync
 ```
 
-### 11.2 单命令执行大闭环（按 role 发现或按需创建）
+运行后可直接使用按键：
+
+- `↑/↓/←/→` 平移 spectator
+- `+/-` 调整高度
+- `/` 尝试切换 Follow（若未配置跟随目标会告警并保持 Free）
+
+### 11.3 单命令执行大闭环（按 role 发现或按需创建）
 
 ```bash
 python -m vln_carla2.adapters.cli.main operator run --launch-carla --host 127.0.0.1 --port 2000 --mode sync --follow role:ego --strategy parallel --steps 80 --target-speed-mps 5.0 --z 20
 ```
 
-### 11.3 生成 ego 车辆并以 JSON 输出
+### 11.4 生成 ego 车辆并以 JSON 输出
 
 ```bash
 python -m vln_carla2.adapters.cli.main vehicle spawn --host 127.0.0.1 --port 2000 --mode sync --blueprint-filter vehicle.tesla.model3 --spawn-x 0.038 --spawn-y 15.320 --spawn-z 0.15 --spawn-yaw 180 --role-name ego --output json
 ```
 
-### 11.4 持续跟随 ego（spectator 级别）
+### 11.5 持续跟随 ego（spectator 级别）
 
 ```bash
 python -m vln_carla2.adapters.cli.main spectator follow --host 127.0.0.1 --port 2000 --mode sync --follow role:ego --z 20
+```
+
+运行后可使用 `+/-` 调整跟随高度；`/` 不会切换模式（锁定 Follow）。
+
+## 12. Python 调用示例（非 CLI）
+
+### 12.1 scene editor（Free 模式）
+
+```python
+from vln_carla2.app.scene_editor_main import SceneEditorSettings, run
+
+settings = SceneEditorSettings(
+    host="127.0.0.1",
+    port=2000,
+    synchronous_mode=True,
+    tick_sleep_seconds=0.05,
+    start_in_follow_mode=False,
+    allow_mode_toggle=True,
+)
+run(settings)
+```
+
+### 12.2 scene editor（锁定 Follow，等价 spectator follow 风格）
+
+```python
+from vln_carla2.app.scene_editor_main import SceneEditorSettings, run
+
+settings = SceneEditorSettings(
+    host="127.0.0.1",
+    port=2000,
+    synchronous_mode=True,
+    follow_vehicle_id=42,
+    spectator_initial_z=20.0,
+    start_in_follow_mode=True,
+    allow_mode_toggle=False,
+)
+run(settings)
 ```

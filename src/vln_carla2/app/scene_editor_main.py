@@ -1,17 +1,16 @@
-"""Composition root for stage-1 scene editor runtime."""
+"""Composition root for scene editor runtime."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from vln_carla2.app.carla_session import CarlaSessionConfig, managed_carla_session
-from vln_carla2.app.operator_container import build_operator_container
-from vln_carla2.usecases.operator.run_operator_loop import RunOperatorLoop
+from vln_carla2.app.scene_editor_container import build_scene_editor_container
 
 
 @dataclass(slots=True)
 class SceneEditorSettings:
-    """Runtime configuration for free spectator movement baseline."""
+    """Runtime configuration for scene editor behavior."""
 
     host: str = "127.0.0.1"
     port: int = 2000
@@ -24,6 +23,12 @@ class SceneEditorSettings:
     tick_sleep_seconds: float = 0.05
     follow_vehicle_id: int | None = None
     spectator_initial_z: float = 20.0
+    spectator_min_z: float = -20.0
+    spectator_max_z: float = 120.0
+    keyboard_xy_step: float = 1.0
+    keyboard_z_step: float = 1.0
+    start_in_follow_mode: bool = False
+    allow_mode_toggle: bool = True
 
     def __post_init__(self) -> None:
         if self.port <= 0:
@@ -38,16 +43,12 @@ class SceneEditorSettings:
             raise ValueError("map_name must not be empty")
         if self.follow_vehicle_id is not None and self.follow_vehicle_id <= 0:
             raise ValueError("follow_vehicle_id must be positive when set")
-
-
-@dataclass(slots=True)
-class RunSceneEditorLoop:
-    """Stage-1 use case: run tick loop with spectator controls."""
-
-    runtime: RunOperatorLoop
-
-    def run(self, *, max_ticks: int | None = None) -> int:
-        return self.runtime.run(max_ticks=max_ticks)
+        if self.spectator_max_z < self.spectator_min_z:
+            raise ValueError("spectator_max_z must be >= spectator_min_z")
+        if self.keyboard_xy_step < 0:
+            raise ValueError("keyboard_xy_step must be >= 0")
+        if self.keyboard_z_step < 0:
+            raise ValueError("keyboard_z_step must be >= 0")
 
 
 def run(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
@@ -64,12 +65,17 @@ def run(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
     )
 
     with managed_carla_session(session_config) as session:
-        container = build_operator_container(
+        container = build_scene_editor_container(
             world=session.world,
             synchronous_mode=settings.synchronous_mode,
             sleep_seconds=settings.tick_sleep_seconds,
             follow_vehicle_id=settings.follow_vehicle_id,
             spectator_initial_z=settings.spectator_initial_z,
+            spectator_min_z=settings.spectator_min_z,
+            spectator_max_z=settings.spectator_max_z,
+            keyboard_xy_step=settings.keyboard_xy_step,
+            keyboard_z_step=settings.keyboard_z_step,
+            start_in_follow_mode=settings.start_in_follow_mode,
+            allow_mode_toggle=settings.allow_mode_toggle,
         )
-        usecase = RunSceneEditorLoop(runtime=container.runtime)
-        return usecase.run(max_ticks=max_ticks)
+        return container.runtime.run(max_ticks=max_ticks)

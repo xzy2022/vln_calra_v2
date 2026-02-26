@@ -1,0 +1,25 @@
+"""Input snapshot for scene editor mode orchestration."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class EditorInputSnapshot:
+    """Current tick input including held axes and pressed toggles."""
+
+    held_dx: float = 0.0
+    held_dy: float = 0.0
+    held_dz: float = 0.0
+    pressed_toggle_mode: bool = False
+
+    @classmethod
+    def zero(cls) -> "EditorInputSnapshot":
+        return cls(
+            held_dx=0.0,
+            held_dy=0.0,
+            held_dz=0.0,
+            pressed_toggle_mode=False,
+        )
+
