@@ -59,7 +59,7 @@ class _FakeFollower:
         return True
 
 
-class _FakeSpawnVehicle:
+class _FakeSpawnAction:
     def __init__(self, *, error: Exception | None = None) -> None:
         self.calls = 0
         self.error = error
@@ -78,7 +78,8 @@ def _make_loop(
     move_spectator: _FakeMoveSpectator | None = None,
     warnings: list[str] | None = None,
     errors: list[str] | None = None,
-    spawn_vehicle: _FakeSpawnVehicle | None = None,
+    spawn_vehicle: _FakeSpawnAction | None = None,
+    spawn_barrel: _FakeSpawnAction | None = None,
     allow_spawn_vehicle_hotkey: bool = True,
 ) -> RunSceneEditorLoop:
     world = _FakeWorld()
@@ -96,6 +97,7 @@ def _make_loop(
         move_spectator=move_spectator,
         follow_vehicle_topdown=follower,
         spawn_vehicle_at_spectator_xy=spawn_vehicle,
+        spawn_barrel_at_spectator_xy=spawn_barrel,
         warn_fn=(warnings.append if warnings is not None else print),
         error_fn=(errors.append if errors is not None else print),
     )
@@ -228,7 +230,7 @@ def test_follow_mode_stays_follow_when_vehicle_temporarily_missing() -> None:
 
 
 def test_spawn_hotkey_triggers_exactly_once_per_pressed_snapshot() -> None:
-    spawn = _FakeSpawnVehicle()
+    spawn = _FakeSpawnAction()
     loop = _make_loop(
         state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
         snapshots=[
@@ -249,7 +251,7 @@ def test_spawn_hotkey_triggers_exactly_once_per_pressed_snapshot() -> None:
 
 def test_spawn_hotkey_errors_are_reported_without_retry() -> None:
     errors: list[str] = []
-    spawn = _FakeSpawnVehicle(error=RuntimeError("blocked by collision"))
+    spawn = _FakeSpawnAction(error=RuntimeError("blocked by collision"))
     loop = _make_loop(
         state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
         snapshots=[EditorInputSnapshot(pressed_spawn_vehicle=True)],
@@ -266,7 +268,7 @@ def test_spawn_hotkey_errors_are_reported_without_retry() -> None:
 
 
 def test_spawn_hotkey_can_be_disabled() -> None:
-    spawn = _FakeSpawnVehicle()
+    spawn = _FakeSpawnAction()
     loop = _make_loop(
         state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
         snapshots=[EditorInputSnapshot(pressed_spawn_vehicle=True)],
@@ -278,3 +280,46 @@ def test_spawn_hotkey_can_be_disabled() -> None:
     loop.step(with_tick=False, with_sleep=False)
 
     assert spawn.calls == 0
+
+
+def test_spawn_barrel_hotkey_triggers_once_per_pressed_snapshot() -> None:
+    spawn_barrel = _FakeSpawnAction()
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[
+            EditorInputSnapshot(pressed_spawn_barrel=True),
+            EditorInputSnapshot(pressed_spawn_barrel=False),
+            EditorInputSnapshot(pressed_spawn_barrel=True),
+        ],
+        move_spectator=_FakeMoveSpectator(),
+        spawn_barrel=spawn_barrel,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert spawn_barrel.calls == 2
+
+
+def test_spawn_hotkeys_error_messages_are_distinct() -> None:
+    errors: list[str] = []
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[
+            EditorInputSnapshot(
+                pressed_spawn_vehicle=True,
+                pressed_spawn_barrel=True,
+            )
+        ],
+        move_spectator=_FakeMoveSpectator(),
+        spawn_vehicle=_FakeSpawnAction(error=RuntimeError("vehicle-collision")),
+        spawn_barrel=_FakeSpawnAction(error=RuntimeError("barrel-collision")),
+        errors=errors,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert len(errors) == 2
+    assert errors[0].startswith("[ERROR] spawn vehicle failed:")
+    assert errors[1].startswith("[ERROR] spawn barrel failed:")

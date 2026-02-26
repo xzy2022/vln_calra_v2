@@ -65,6 +65,7 @@ class RunSceneEditorLoop:
     move_spectator: SceneEditorMoveSpectatorProtocol | None = None
     follow_vehicle_topdown: SceneEditorFollowVehicleProtocol | None = None
     spawn_vehicle_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
+    spawn_barrel_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
     warn_fn: Callable[[str], None] = print
     error_fn: Callable[[str], None] = print
     _warned_missing_follow_runtime: bool = field(
@@ -81,7 +82,7 @@ class RunSceneEditorLoop:
     def step(self, *, with_tick: bool = True, with_sleep: bool = True) -> int | None:
         """Execute one scene editor iteration and optionally tick/sleep."""
         input_snapshot = self._read_input_snapshot()
-        self._handle_spawn_hotkey(input_snapshot)
+        self._handle_spawn_hotkeys(input_snapshot)
 
         if self.allow_mode_toggle and input_snapshot.pressed_toggle_mode:
             self._handle_toggle_mode()
@@ -157,16 +158,27 @@ class RunSceneEditorLoop:
         if followed:
             self._warned_missing_follow_runtime = False
 
-    def _handle_spawn_hotkey(self, input_snapshot: EditorInputSnapshot) -> None:
-        if not self.allow_spawn_vehicle_hotkey or not input_snapshot.pressed_spawn_vehicle:
+    def _handle_spawn_hotkeys(self, input_snapshot: EditorInputSnapshot) -> None:
+        if not self.allow_spawn_vehicle_hotkey:
             return
-        if self.spawn_vehicle_at_spectator_xy is None:
-            self._error("spawn vehicle hotkey is unavailable in current runtime.")
-            return
-        try:
-            self.spawn_vehicle_at_spectator_xy.run()
-        except Exception as exc:
-            self._error(f"spawn vehicle failed: {exc}")
+
+        if input_snapshot.pressed_spawn_vehicle:
+            if self.spawn_vehicle_at_spectator_xy is None:
+                self._error("spawn vehicle hotkey is unavailable in current runtime.")
+            else:
+                try:
+                    self.spawn_vehicle_at_spectator_xy.run()
+                except Exception as exc:
+                    self._error(f"spawn vehicle failed: {exc}")
+
+        if input_snapshot.pressed_spawn_barrel:
+            if self.spawn_barrel_at_spectator_xy is None:
+                self._error("spawn barrel hotkey is unavailable in current runtime.")
+            else:
+                try:
+                    self.spawn_barrel_at_spectator_xy.run()
+                except Exception as exc:
+                    self._error(f"spawn barrel failed: {exc}")
 
     def _warn_once_missing_follow_runtime(self) -> None:
         if self._warned_missing_follow_runtime:

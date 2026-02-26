@@ -131,3 +131,40 @@ def test_spawn_vehicle_at_spectator_xy_fails_when_no_waypoint() -> None:
         usecase.run()
 
     assert len(spawn_vehicle.calls) == 0
+
+
+def test_spawn_vehicle_at_spectator_xy_supports_barrel_blueprint_and_offset() -> None:
+    created = VehicleDescriptor(
+        actor_id=201,
+        type_id="static.prop.barrel",
+        role_name="barrel",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    spawn_vehicle = _FakeSpawnVehicle(created=created)
+    ground_resolver = _FakeGroundResolver(ground_z=5.0)
+    camera = _FakeSpectatorCamera(
+        _FakeTransform(
+            location=_FakeLocation(x=1.25, y=2.5, z=10.0),
+            rotation=_FakeRotation(),
+        )
+    )
+    usecase = SpawnVehicleAtSpectatorXY(
+        spectator_camera=camera,
+        ground_z_resolver=ground_resolver,
+        spawn_vehicle=spawn_vehicle,
+        blueprint_filter="static.prop.barrel*",
+        vehicle_z_offset=0.0,
+        role_name="barrel",
+    )
+
+    usecase.run()
+
+    assert len(spawn_vehicle.calls) == 1
+    request = spawn_vehicle.calls[0]
+    assert request.blueprint_filter == "static.prop.barrel*"
+    assert request.spawn_x == 1.25
+    assert request.spawn_y == 2.5
+    assert request.spawn_z == 5.0
+    assert request.role_name == "barrel"

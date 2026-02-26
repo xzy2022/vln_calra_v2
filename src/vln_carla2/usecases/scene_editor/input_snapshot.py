@@ -14,6 +14,7 @@ class EditorInputSnapshot:
     held_dz: float = 0.0
     pressed_toggle_mode: bool = False
     pressed_spawn_vehicle: bool = False
+    pressed_spawn_barrel: bool = False
 
     @classmethod
     def zero(cls) -> "EditorInputSnapshot":
@@ -23,4 +24,5 @@ class EditorInputSnapshot:
             held_dz=0.0,
             pressed_toggle_mode=False,
             pressed_spawn_vehicle=False,
+            pressed_spawn_barrel=False,
         )

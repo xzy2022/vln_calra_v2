@@ -44,6 +44,7 @@ def build_scene_editor_container(
     move_spectator = None
     follow_vehicle_topdown = None
     spawn_vehicle_at_spectator_xy = None
+    spawn_barrel_at_spectator_xy = None
     state = EditorState(
         mode=EditorMode.FOLLOW if start_in_follow_mode else EditorMode.FREE,
         follow_vehicle_id=follow_vehicle_id,
@@ -77,6 +78,14 @@ def build_scene_editor_container(
             ground_z_resolver=world_adapter,
             spawn_vehicle=SpawnVehicle(spawner=CarlaVehicleSpawnerAdapter(world)),
         )
+        spawn_barrel_at_spectator_xy = SpawnVehicleAtSpectatorXY(
+            spectator_camera=world_adapter,
+            ground_z_resolver=world_adapter,
+            spawn_vehicle=SpawnVehicle(spawner=CarlaVehicleSpawnerAdapter(world)),
+            blueprint_filter="static.prop.barrel*",
+            vehicle_z_offset=0.02,
+            role_name="barrel",
+        )
 
     runtime = RunSceneEditorLoop(
         world=world,
@@ -91,6 +100,7 @@ def build_scene_editor_container(
         move_spectator=move_spectator,
         follow_vehicle_topdown=follow_vehicle_topdown,
         spawn_vehicle_at_spectator_xy=spawn_vehicle_at_spectator_xy,
+        spawn_barrel_at_spectator_xy=spawn_barrel_at_spectator_xy,
     )
     return SceneEditorContainer(runtime=runtime)
 

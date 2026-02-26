@@ -14,7 +14,9 @@ VK_UP = 0x26
 VK_RIGHT = 0x27
 VK_DOWN = 0x28
 VK_1 = 0x31
+VK_2 = 0x32
 VK_NUMPAD1 = 0x61
+VK_NUMPAD2 = 0x62
 VK_ADD = 0x6B
 VK_SUBTRACT = 0x6D
 VK_DIVIDE = 0x6F
@@ -73,6 +75,7 @@ class SceneEditorKeyboardInputWindows:
     _user32: Any | None = field(init=False, default=None, repr=False)
     _toggle_down_last_tick: bool = field(init=False, default=False, repr=False)
     _spawn_down_last_tick: bool = field(init=False, default=False, repr=False)
+    _spawn_barrel_down_last_tick: bool = field(init=False, default=False, repr=False)
 
     def __post_init__(self) -> None:
         self._user32 = _load_user32()
@@ -81,6 +84,7 @@ class SceneEditorKeyboardInputWindows:
         if self._user32 is None:
             self._toggle_down_last_tick = False
             self._spawn_down_last_tick = False
+            self._spawn_barrel_down_last_tick = False
             return EditorInputSnapshot.zero()
 
         up = self._is_pressed(VK_UP)
@@ -91,6 +95,7 @@ class SceneEditorKeyboardInputWindows:
         minus = self._is_pressed(VK_OEM_MINUS) or self._is_pressed(VK_SUBTRACT)
         toggle_down = self._is_pressed(VK_OEM_2) or self._is_pressed(VK_DIVIDE)
         spawn_down = self._is_pressed(VK_1) or self._is_pressed(VK_NUMPAD1)
+        spawn_barrel_down = self._is_pressed(VK_2) or self._is_pressed(VK_NUMPAD2)
 
         held_dx = self.xy_step if up and not down else -self.xy_step if down and not up else 0.0
         held_dy = self.xy_step if right and not left else -self.xy_step if left and not right else 0.0
@@ -100,6 +105,10 @@ class SceneEditorKeyboardInputWindows:
         self._toggle_down_last_tick = toggle_down
         pressed_spawn_vehicle = spawn_down and not self._spawn_down_last_tick
         self._spawn_down_last_tick = spawn_down
+        pressed_spawn_barrel = (
+            spawn_barrel_down and not self._spawn_barrel_down_last_tick
+        )
+        self._spawn_barrel_down_last_tick = spawn_barrel_down
 
         return EditorInputSnapshot(
             held_dx=held_dx,
@@ -107,6 +116,7 @@ class SceneEditorKeyboardInputWindows:
             held_dz=held_dz,
             pressed_toggle_mode=pressed_toggle_mode,
             pressed_spawn_vehicle=pressed_spawn_vehicle,
+            pressed_spawn_barrel=pressed_spawn_barrel,
         )
 
     def _is_pressed(self, vk_code: int) -> bool:
