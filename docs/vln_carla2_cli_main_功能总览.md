@@ -205,7 +205,7 @@ python -m vln_carla2.adapters.cli.main scene run --launch-carla --host 127.0.0.1
 ### 11.2 单命令执行大闭环（按 role 发现或按需创建）
 
 ```bash
-python -m vln_carla2.adapters.cli.main operator run --host 127.0.0.1 --port 2000 --mode sync --vehicle-ref role:ego --strategy parallel --steps 80 --target-speed-mps 5.0 --z 20
+python -m vln_carla2.adapters.cli.main operator run --launch-carla --host 127.0.0.1 --port 2000 --mode sync --follow role:ego --strategy parallel --steps 80 --target-speed-mps 5.0 --z 20
 ```
 
 ### 11.3 生成 ego 车辆并以 JSON 输出
