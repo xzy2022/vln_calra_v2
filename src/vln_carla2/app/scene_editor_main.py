@@ -23,6 +23,7 @@ class SceneEditorSettings:
     offscreen_mode: bool = False
     tick_sleep_seconds: float = 0.05
     follow_vehicle_id: int | None = None
+    spectator_initial_z: float = 20.0
 
     def __post_init__(self) -> None:
         if self.port <= 0:
@@ -68,6 +69,7 @@ def run(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
             synchronous_mode=settings.synchronous_mode,
             sleep_seconds=settings.tick_sleep_seconds,
             follow_vehicle_id=settings.follow_vehicle_id,
+            spectator_initial_z=settings.spectator_initial_z,
         )
         usecase = RunSceneEditorLoop(runtime=container.runtime)
         return usecase.run(max_ticks=max_ticks)

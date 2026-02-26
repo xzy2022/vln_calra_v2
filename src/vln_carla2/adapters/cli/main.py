@@ -10,10 +10,15 @@ from typing import Any, Callable, Sequence, TypeVar
 
 from vln_carla2.adapters.cli.presenter import print_vehicle, print_vehicle_list
 from vln_carla2.adapters.cli.vehicle_ref_parser import VehicleRefParseError, parse_vehicle_ref
-from vln_carla2.app.carla_session import CarlaSessionConfig, managed_carla_session
+from vln_carla2.app.carla_session import (
+    CarlaSessionConfig,
+    clear_runtime_session_config,
+    managed_carla_session,
+    read_runtime_offscreen_mode,
+    record_runtime_session_config,
+)
 from vln_carla2.app.operator_container import OperatorContainer, build_operator_container
 from vln_carla2.app.scene_editor_main import SceneEditorSettings, run as run_scene_editor
-from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.infrastructure.carla.server_launcher import (
     is_carla_server_reachable,
     is_loopback_host,
@@ -21,16 +26,12 @@ from vln_carla2.infrastructure.carla.server_launcher import (
     terminate_carla_server,
     wait_for_carla_server,
 )
-from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
-from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.operator.models import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.operator.models import SpawnVehicleRequest
 
 
 SCENE_COMMAND = "scene"
 VEHICLE_COMMAND = "vehicle"
 SPECTATOR_COMMAND = "spectator"
-_ROOT_COMMANDS = {SCENE_COMMAND, VEHICLE_COMMAND, SPECTATOR_COMMAND}
-_LEGACY_DEPRECATED_WARNED = False
 
 T = TypeVar("T")
 
@@ -98,13 +99,13 @@ def build_parser() -> argparse.ArgumentParser:
     spectator_subparsers = spectator_parser.add_subparsers(dest="spectator_action", required=True)
     spectator_follow = spectator_subparsers.add_parser(
         "follow",
-        help="Lock spectator to target vehicle top-down once.",
+        help="Continuously follow target vehicle in top-down spectator view.",
     )
     _add_world_session_arguments(spectator_follow, defaults=defaults)
     spectator_follow.add_argument(
-        "--ref",
+        "--follow",
         required=True,
-        help="Vehicle reference: actor:<id>, role:<name>, or first.",
+        help="Follow reference: actor:<id>, role:<name>, or first.",
     )
     spectator_follow.add_argument(
         "--z",
@@ -117,30 +118,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-
-def build_legacy_parser() -> argparse.ArgumentParser:
-    _load_env_from_dotenv()
-    defaults = SceneEditorSettings()
-    default_carla_exe = os.getenv("CARLA_UE4_EXE")
-
-    parser = argparse.ArgumentParser(description="Run stage-1 CARLA runtime baseline.")
-    _add_scene_runtime_arguments(
-        parser,
-        defaults=defaults,
-        default_carla_exe=default_carla_exe,
-    )
-    return parser
-
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     raw_argv = list(argv) if argv is not None else sys.argv[1:]
-    if _is_legacy_entry(raw_argv):
-        _print_legacy_deprecation_once()
-        parser = build_legacy_parser()
-        args = parser.parse_args(raw_argv)
-        return _handle_scene_run(args)
-
     parser = build_parser()
     args = parser.parse_args(raw_argv)
     handler = getattr(args, "handler", None)
@@ -190,17 +169,6 @@ def _handle_scene_run(args: argparse.Namespace) -> int:
             launched_process = launch_result
 
     try:
-        follow_vehicle_id = _resolve_follow_vehicle_id(args)
-    except CliUsageError as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
-        return 2
-    except Exception as exc:
-        print(f"[ERROR] failed to resolve follow ref: {exc}", file=sys.stderr)
-        return 1
-
-    settings.follow_vehicle_id = follow_vehicle_id
-
-    try:
         run_scene_editor(settings)
     except KeyboardInterrupt:
         print("[INFO] interrupted by Ctrl+C")
@@ -211,6 +179,7 @@ def _handle_scene_run(args: argparse.Namespace) -> int:
         if launched_process is not None and not args.keep_carla_server:
             try:
                 terminate_carla_server(launched_process)
+                clear_runtime_session_config(args.host, args.port)
             except Exception as exc:
                 print(
                     f"[WARN] failed to terminate launched CARLA process: {exc}",
@@ -260,55 +229,57 @@ def _handle_vehicle_spawn(args: argparse.Namespace) -> int:
 
 def _handle_spectator_follow(args: argparse.Namespace) -> int:
     try:
-        ref = parse_vehicle_ref(args.ref)
-    except VehicleRefParseError as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
-        return 2
+        if _read_session_offscreen_mode(args):
+            print("[WARN] spectator follow skipped in offscreen mode.")
+            return 0
+    except Exception as exc:
+        print(f"[ERROR] failed to detect session screen mode: {exc}", file=sys.stderr)
+        return 1
 
     try:
-        outcome = _with_operator_container(
-            args,
-            operation=lambda container, world: _follow_spectator_once(
-                container=container,
-                world=world,
-                raw_ref=args.ref,
-                ref=ref,
-                z=args.z,
-            ),
-        )
-        print(f"[INFO] spectator aligned ref={args.ref} actor_id={outcome.actor_id} z={args.z}")
-        return 0
+        follow_vehicle_id = _resolve_follow_vehicle_id(args)
     except CliUsageError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
+        print(f"[ERROR] failed to resolve follow ref: {exc}", file=sys.stderr)
+        return 1
+
+    if follow_vehicle_id is None:
+        print("[ERROR] --follow is required", file=sys.stderr)
+        return 2
+
+    session_config = _build_session_config(args)
+    settings = SceneEditorSettings(
+        host=session_config.host,
+        port=session_config.port,
+        timeout_seconds=session_config.timeout_seconds,
+        map_name=session_config.map_name,
+        synchronous_mode=session_config.synchronous_mode,
+        fixed_delta_seconds=session_config.fixed_delta_seconds,
+        no_rendering_mode=session_config.no_rendering_mode,
+        offscreen_mode=session_config.offscreen_mode,
+        follow_vehicle_id=follow_vehicle_id,
+        spectator_initial_z=args.z,
+    )
+
+    try:
+        run_scene_editor(settings)
+    except KeyboardInterrupt:
+        print("[INFO] interrupted by Ctrl+C")
+    except Exception as exc:
         print(f"[ERROR] spectator follow failed: {exc}", file=sys.stderr)
         return 1
 
+    print(f"[INFO] spectator follow stopped mode={args.mode} host={args.host} port={args.port}")
+    return 0
 
 
-def _follow_spectator_once(
-    *,
-    container: OperatorContainer,
-    world: Any,
-    raw_ref: str,
-    ref: Any,
-    z: float,
-) -> VehicleDescriptor:
-    descriptor = container.resolve_vehicle_ref.run(ref)
-    if descriptor is None:
-        raise CliUsageError(f"no vehicle matches ref '{raw_ref}'")
-
-    world_adapter = CarlaWorldAdapter(world)
-    follow = FollowVehicleTopDown(
-        spectator_camera=world_adapter,
-        vehicle_pose=world_adapter,
-        vehicle_id=VehicleId(descriptor.actor_id),
-        z=z,
-    )
-    if not follow.follow_once():
-        raise CliUsageError(f"vehicle missing during follow: actor_id={descriptor.actor_id}")
-    return descriptor
+def _read_session_offscreen_mode(args: argparse.Namespace) -> bool:
+    offscreen_mode = read_runtime_offscreen_mode(args.host, args.port)
+    if offscreen_mode is None:
+        return False
+    return offscreen_mode
 
 
 
@@ -347,12 +318,9 @@ def _build_session_config(args: argparse.Namespace) -> CarlaSessionConfig:
 
 
 def _resolve_follow_vehicle_id(args: argparse.Namespace) -> int | None:
-    follow_vehicle_id = getattr(args, "follow_vehicle_id", None)
     follow_ref_raw = getattr(args, "follow", None)
     if follow_ref_raw is None:
-        return follow_vehicle_id
-    if follow_vehicle_id is not None:
-        raise CliUsageError("cannot combine --follow and --follow-vehicle-id")
+        return None
 
     try:
         ref = parse_vehicle_ref(follow_ref_raw)
@@ -428,6 +396,10 @@ def _maybe_launch_carla(
             timeout_seconds=args.carla_startup_timeout_seconds,
             process=launched_process,
         )
+        record_runtime_session_config(
+            session_config,
+            owner_pid=launched_process.pid,
+        )
         return launched_process
     except Exception as exc:
         if launched_process is not None:
@@ -488,17 +460,6 @@ def _add_scene_runtime_arguments(
         help="Sleep duration between ticks (sync mode only).",
     )
     parser.add_argument(
-        "--follow",
-        default=None,
-        help="Follow reference: actor:<id>, role:<name>, or first.",
-    )
-    parser.add_argument(
-        "--follow-vehicle-id",
-        type=int,
-        default=defaults.follow_vehicle_id,
-        help="Legacy follow target by actor id.",
-    )
-    parser.add_argument(
         "--offscreen",
         action="store_true",
         help="Enable offscreen window mode for launched CARLA server.",
@@ -540,30 +501,6 @@ def _add_scene_runtime_arguments(
         action="store_true",
         help="Do not terminate launched CARLA process on exit.",
     )
-
-
-
-def _is_legacy_entry(argv: Sequence[str]) -> bool:
-    if not argv:
-        return True
-    first = argv[0]
-    if first in {"-h", "--help"}:
-        return False
-    return first not in _ROOT_COMMANDS
-
-
-
-def _print_legacy_deprecation_once() -> None:
-    global _LEGACY_DEPRECATED_WARNED
-    if _LEGACY_DEPRECATED_WARNED:
-        return
-    print(
-        "[DEPRECATED] legacy root args are still supported. "
-        "Please migrate to: scene run ..."
-    )
-    _LEGACY_DEPRECATED_WARNED = True
-
-
 
 def _load_env_from_dotenv(path: str = ".env") -> None:
     if not os.path.exists(path):

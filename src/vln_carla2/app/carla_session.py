@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
+import tempfile
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Iterator
+from pathlib import Path
+from typing import Any, Iterator, cast
 
 from vln_carla2.infrastructure.carla.client_factory import restore_world_settings
 from vln_carla2.infrastructure.carla.types import require_carla
+
+_RUNTIME_SESSION_REGISTRY = Path(tempfile.gettempdir()) / "vln_carla2_carla_runtime_session.json"
 
 
 @dataclass(slots=True)
@@ -31,10 +37,16 @@ class CarlaSession:
     client: Any
     world: Any
     original_settings: Any
+    offscreen_mode: bool = False
 
     def restore(self) -> None:
         """Restore world settings captured when the session was opened."""
         restore_world_settings(self.world, self.original_settings)
+
+
+def is_offscreen_session(session: CarlaSession) -> bool:
+    """Return True when opened CARLA session runs in offscreen mode."""
+    return session.offscreen_mode
 
 
 def open_carla_session(config: CarlaSessionConfig) -> CarlaSession:
@@ -60,7 +72,39 @@ def open_carla_session(config: CarlaSessionConfig) -> CarlaSession:
     if config.synchronous_mode:
         world.tick()
 
-    return CarlaSession(client=client, world=world, original_settings=original_settings)
+    return CarlaSession(
+        client=client,
+        world=world,
+        original_settings=original_settings,
+        offscreen_mode=_detect_world_offscreen_mode(
+            world=world,
+            configured_offscreen_mode=config.offscreen_mode,
+        ),
+    )
+
+
+def _detect_world_offscreen_mode(*, world: Any, configured_offscreen_mode: bool) -> bool:
+    """
+    Detect offscreen mode from CARLA world settings when possible.
+
+    CARLA Python API does not consistently expose a dedicated offscreen field
+    across versions, so this falls back to configured value when unavailable.
+    """
+    try:
+        settings = world.get_settings()
+    except Exception:
+        return configured_offscreen_mode
+
+    for attr_name in (
+        "offscreen_mode",
+        "off_screen_mode",
+        "render_offscreen",
+        "render_off_screen",
+    ):
+        value = getattr(settings, attr_name, None)
+        if isinstance(value, bool):
+            return value
+    return configured_offscreen_mode
 
 
 @contextmanager
@@ -71,3 +115,72 @@ def managed_carla_session(config: CarlaSessionConfig) -> Iterator[CarlaSession]:
         yield session
     finally:
         session.restore()
+
+
+def record_runtime_session_config(
+    config: CarlaSessionConfig,
+    *,
+    owner_pid: int | None = None,
+) -> None:
+    """Persist runtime session config for cross-process lookup by host:port."""
+    registry = _load_runtime_registry()
+    key = _runtime_registry_key(config.host, config.port)
+    registry[key] = {
+        "host": config.host,
+        "port": config.port,
+        "offscreen_mode": bool(config.offscreen_mode),
+        "owner_pid": owner_pid,
+        "updated_at": time.time(),
+    }
+    _save_runtime_registry(registry)
+
+
+def read_runtime_offscreen_mode(host: str, port: int) -> bool | None:
+    """Read persisted offscreen mode for a CARLA runtime if available."""
+    registry = _load_runtime_registry()
+    key = _runtime_registry_key(host, port)
+    payload = registry.get(key)
+    if not isinstance(payload, dict):
+        return None
+    payload_dict = cast(dict[str, Any], payload)
+    offscreen_mode = payload_dict.get("offscreen_mode")
+    if not isinstance(offscreen_mode, bool):
+        return None
+    return offscreen_mode
+
+
+def clear_runtime_session_config(host: str, port: int) -> None:
+    """Remove persisted runtime session config by host:port."""
+    registry = _load_runtime_registry()
+    key = _runtime_registry_key(host, port)
+    if key in registry:
+        del registry[key]
+        _save_runtime_registry(registry)
+
+
+def _runtime_registry_key(host: str, port: int) -> str:
+    return f"{host}:{port}"
+
+
+def _load_runtime_registry() -> dict[str, Any]:
+    if not _RUNTIME_SESSION_REGISTRY.exists():
+        return {}
+    try:
+        content = _RUNTIME_SESSION_REGISTRY.read_text(encoding="utf-8")
+        payload = json.loads(content)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    # json.loads returns a dynamically typed object; normalize to the declared mapping type.
+    return cast(dict[str, Any], payload)
+
+
+def _save_runtime_registry(registry: dict[str, Any]) -> None:
+    try:
+        _RUNTIME_SESSION_REGISTRY.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = _RUNTIME_SESSION_REGISTRY.with_suffix(".tmp")
+        temp_path.write_text(json.dumps(registry, ensure_ascii=True), encoding="utf-8")
+        temp_path.replace(_RUNTIME_SESSION_REGISTRY)
+    except OSError:
+        return

@@ -62,6 +62,7 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
     assert container_kwargs["synchronous_mode"] is True
     assert container_kwargs["sleep_seconds"] == 0.02
     assert container_kwargs["follow_vehicle_id"] is None
+    assert container_kwargs["spectator_initial_z"] == 20.0
     assert runtime.max_ticks_calls == [3]
 
 
@@ -105,6 +106,7 @@ def test_run_passes_async_settings_to_session_and_container(monkeypatch) -> None
     assert session_config.offscreen_mode is False
     assert container_kwargs["synchronous_mode"] is False
     assert container_kwargs["sleep_seconds"] == 0.01
+    assert container_kwargs["spectator_initial_z"] == 20.0
     assert runtime.max_ticks_calls == [2]
 
 
@@ -132,10 +134,12 @@ def test_run_passes_follow_vehicle_id_to_container(monkeypatch) -> None:
             synchronous_mode=True,
             tick_sleep_seconds=0.01,
             follow_vehicle_id=123,
+            spectator_initial_z=33.0,
         ),
         max_ticks=1,
     )
 
     assert result == 1
     assert captured["container_kwargs"]["follow_vehicle_id"] == 123
+    assert captured["container_kwargs"]["spectator_initial_z"] == 33.0
     assert runtime.max_ticks_calls == [1]
