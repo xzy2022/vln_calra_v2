@@ -23,6 +23,7 @@ class Settings:
     map_name: str = "Town10HD_Opt"
     fixed_delta_seconds: float = 0.05
     no_rendering: bool = False
+    offscreen: bool = False
     steps: int = 80
     target_speed_mps: float = 5.0
     vehicle_blueprint: str = "vehicle.tesla.model3"
@@ -48,3 +49,8 @@ class Settings:
     def no_rendering_mode(self) -> bool:
         """Compatibility mapping for CARLA WorldSettings API."""
         return self.no_rendering
+
+    @property
+    def offscreen_mode(self) -> bool:
+        """Compatibility mapping for CARLA server launch settings."""
+        return self.offscreen

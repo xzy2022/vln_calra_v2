@@ -20,6 +20,7 @@ class SceneEditorSettings:
     synchronous_mode: bool = True
     fixed_delta_seconds: float = 0.05
     no_rendering_mode: bool = False
+    offscreen_mode: bool = False
     tick_sleep_seconds: float = 0.05
     follow_vehicle_id: int | None = None
 

@@ -153,27 +153,32 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _handle_scene_run(args: argparse.Namespace) -> int:
     launched_process: subprocess.Popen[bytes] | None = None
-    no_rendering_mode = args.no_rendering
-    offscreen_mode = args.offscreen
-    synchronous_mode = args.mode == "sync"
+    settings = SceneEditorSettings(
+        host=args.host,
+        port=args.port,
+        timeout_seconds=args.timeout_seconds,
+        map_name=args.map_name,
+        synchronous_mode=args.mode == "sync",
+        fixed_delta_seconds=args.fixed_delta_seconds,
+        no_rendering_mode=args.no_rendering,
+        offscreen_mode=args.offscreen,
+        tick_sleep_seconds=args.tick_sleep_seconds,
+        follow_vehicle_id=None,
+    )
 
-    if offscreen_mode and not args.launch_carla:
+    if settings.offscreen_mode and not args.launch_carla:
         print(
             "[WARN] --offscreen only affects launched CARLA server "
             "(enable --launch-carla)."
         )
-    if no_rendering_mode and not args.launch_carla:
+    if settings.no_rendering_mode and not args.launch_carla:
         print(
             "[WARN] --no-rendering applies world settings, but window "
             "visibility depends on existing CARLA server startup flags."
         )
 
     if args.launch_carla:
-        launch_result = _maybe_launch_carla(
-            args,
-            offscreen_mode=offscreen_mode,
-            no_rendering_mode=no_rendering_mode,
-        )
+        launch_result = _maybe_launch_carla(args, settings=settings)
         if isinstance(launch_result, int):
             if launch_result != 0:
                 return launch_result
@@ -189,17 +194,7 @@ def _handle_scene_run(args: argparse.Namespace) -> int:
         print(f"[ERROR] failed to resolve follow ref: {exc}", file=sys.stderr)
         return 1
 
-    settings = SceneEditorSettings(
-        host=args.host,
-        port=args.port,
-        timeout_seconds=args.timeout_seconds,
-        map_name=args.map_name,
-        synchronous_mode=synchronous_mode,
-        fixed_delta_seconds=args.fixed_delta_seconds,
-        no_rendering_mode=no_rendering_mode,
-        tick_sleep_seconds=args.tick_sleep_seconds,
-        follow_vehicle_id=follow_vehicle_id,
-    )
+    settings.follow_vehicle_id = follow_vehicle_id
 
     try:
         run_scene_editor(settings)
@@ -375,25 +370,24 @@ def _resolve_follow_vehicle_id(args: argparse.Namespace) -> int | None:
 def _maybe_launch_carla(
     args: argparse.Namespace,
     *,
-    offscreen_mode: bool,
-    no_rendering_mode: bool,
+    settings: SceneEditorSettings,
 ) -> subprocess.Popen[bytes] | int:
-    if not is_loopback_host(args.host):
+    if not is_loopback_host(settings.host):
         print(
-            f"[ERROR] --launch-carla only supports local host, got host={args.host}",
+            f"[ERROR] --launch-carla only supports local host, got host={settings.host}",
             file=sys.stderr,
         )
         return 2
-    if is_carla_server_reachable(args.host, args.port):
+    if is_carla_server_reachable(settings.host, settings.port):
         if not args.reuse_existing_carla:
             print(
                 "[ERROR] CARLA already reachable on "
-                f"{args.host}:{args.port}. "
+                f"{settings.host}:{settings.port}. "
                 "Stop existing CARLA or add --reuse-existing-carla.",
                 file=sys.stderr,
             )
             return 2
-        print(f"[INFO] reusing existing CARLA on {args.host}:{args.port}")
+        print(f"[INFO] reusing existing CARLA on {settings.host}:{settings.port}")
         return 0
 
     if not args.carla_exe:
@@ -408,19 +402,19 @@ def _maybe_launch_carla(
     try:
         launched_process = launch_carla_server(
             executable_path=args.carla_exe,
-            rpc_port=args.port,
-            offscreen=offscreen_mode,
-            no_rendering=no_rendering_mode,
+            rpc_port=settings.port,
+            offscreen=settings.offscreen_mode,
+            no_rendering=settings.no_rendering_mode,
             no_sound=not args.with_sound,
             quality_level=args.quality_level,
         )
         print(
             f"[INFO] launched CARLA pid={launched_process.pid} "
-            f"on {args.host}:{args.port}"
+            f"on {settings.host}:{settings.port}"
         )
         wait_for_carla_server(
-            host=args.host,
-            port=args.port,
+            host=settings.host,
+            port=settings.port,
             timeout_seconds=args.carla_startup_timeout_seconds,
             process=launched_process,
         )

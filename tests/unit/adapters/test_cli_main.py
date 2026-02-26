@@ -71,6 +71,7 @@ def test_main_scene_run_passes_sync_mode_settings(monkeypatch: pytest.MonkeyPatc
     assert exit_code == 0
     assert captured["settings"].synchronous_mode is True
     assert captured["settings"].no_rendering_mode is True
+    assert captured["settings"].offscreen_mode is False
     assert captured["settings"].tick_sleep_seconds == 0.01
     assert captured["settings"].follow_vehicle_id is None
 
@@ -125,7 +126,10 @@ def test_main_launches_carla_with_offscreen_and_no_rendering(monkeypatch: pytest
         def poll(self) -> int | None:
             return self._exit_code
 
-    monkeypatch.setattr(cli_main, "run_scene_editor", lambda _settings: None)
+    def fake_run(settings: Any) -> None:
+        captured["settings"] = settings
+
+    monkeypatch.setattr(cli_main, "run_scene_editor", fake_run)
     monkeypatch.setattr(cli_main, "is_carla_server_reachable", lambda *_args, **_kwargs: False)
 
     def fake_launch(**kwargs: Any) -> FakeProcess:
@@ -156,6 +160,8 @@ def test_main_launches_carla_with_offscreen_and_no_rendering(monkeypatch: pytest
     assert captured["launch_kwargs"]["offscreen"] is True
     assert captured["launch_kwargs"]["no_rendering"] is True
     assert captured["launch_kwargs"]["quality_level"] == "Epic"
+    assert captured["settings"].offscreen_mode is True
+    assert captured["settings"].no_rendering_mode is True
     assert captured["terminated"] == 4321
 
 
