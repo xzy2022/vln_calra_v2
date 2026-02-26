@@ -174,6 +174,26 @@ def test_run_operator_loop_keeps_order_move_then_follow_then_tick() -> None:
     assert events == ["read", "move", "follow", "tick"]
 
 
+def test_run_operator_loop_step_can_skip_tick() -> None:
+    events: list[str] = []
+    world = _FakeWorld(events)
+    loop = RunOperatorLoop(
+        world=world,
+        synchronous_mode=True,
+        sleep_seconds=0.2,
+        keyboard_input=_FakeKeyboardInput(events),
+        move_spectator=_FakeMoveSpectator(events),
+        follow_vehicle_topdown=_FakeFollowVehicle(events),
+    )
+
+    frame = loop.step(with_tick=False, with_sleep=False)
+
+    assert frame is None
+    assert events == ["read", "move", "follow"]
+    assert world.tick_calls == 0
+    assert world.wait_for_tick_calls == 0
+
+
 def test_legacy_follow_import_points_to_operator_usecase() -> None:
     from vln_carla2.usecases.spectator.follow_vehicle_topdown import (
         FollowVehicleTopDown as LegacyFollow,

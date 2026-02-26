@@ -1,7 +1,7 @@
 """Use case for running a minimal closed-loop vehicle control."""
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol
 
 from vln_carla2.domain.model.simple_command import ControlCommand, TargetSpeedCommand
 from vln_carla2.domain.model.vehicle_id import VehicleId
@@ -40,7 +40,13 @@ class RunControlLoop:
     logger: Logger
     controller: SpeedController
 
-    def run(self, vehicle_id: VehicleId, target: TargetSpeedCommand, max_steps: int) -> LoopResult:
+    def run(
+        self,
+        vehicle_id: VehicleId,
+        target: TargetSpeedCommand,
+        max_steps: int,
+        before_step: Callable[[int], None] | None = None,
+    ) -> LoopResult:
         if max_steps <= 0:
             raise ValueError("max_steps must be > 0")
 
@@ -49,6 +55,8 @@ class RunControlLoop:
         last_frame = -1
 
         for step in range(1, max_steps + 1):
+            if before_step is not None:
+                before_step(step)
             state = self.state_reader.read(vehicle_id)
             command = self.controller.compute(state, target)
             self.motion_actuator.apply(vehicle_id, command)

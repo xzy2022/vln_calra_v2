@@ -104,3 +104,41 @@ def test_run_control_loop_orders_calls_and_returns_stats() -> None:
     assert len(actuator.applied) == 2
     assert "step=1" in logger.messages[0]
     assert "throttle=0.500" in logger.messages[0]
+
+
+def test_run_control_loop_calls_before_step_hook_before_each_iteration() -> None:
+    events: list[str] = []
+    hook_steps: list[int] = []
+    loop = RunControlLoop(
+        state_reader=FakeStateReader(states=[_state(1, 0.0), _state(2, 1.0)], events=events),
+        motion_actuator=FakeMotionActuator(events=events, applied=[]),
+        clock=FakeClock(events=events),
+        logger=FakeLogger(messages=[]),
+        controller=FakeController(events=events),
+    )
+
+    def _before(step: int) -> None:
+        hook_steps.append(step)
+        events.append("before")
+
+    result = loop.run(
+        vehicle_id=VehicleId(5),
+        target=TargetSpeedCommand(3.0),
+        max_steps=2,
+        before_step=_before,
+    )
+
+    assert result.executed_steps == 2
+    assert hook_steps == [1, 2]
+    assert events == [
+        "before",
+        "read",
+        "compute",
+        "apply",
+        "tick",
+        "before",
+        "read",
+        "compute",
+        "apply",
+        "tick",
+    ]

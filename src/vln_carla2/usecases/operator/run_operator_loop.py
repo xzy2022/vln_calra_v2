@@ -29,6 +29,23 @@ class RunOperatorLoop:
     move_spectator: MoveSpectatorProtocol | None = None
     follow_vehicle_topdown: FollowVehicleProtocol | None = None
 
+    def step(self, *, with_tick: bool = True, with_sleep: bool = True) -> int | None:
+        """
+        Execute one operator iteration and optionally tick/sleep.
+
+        Returns tick frame when `with_tick=True`, otherwise returns None.
+        """
+        self._handle_keyboard_once()
+        self._handle_follow_once()
+
+        if not with_tick:
+            return None
+
+        frame = self._tick_once()
+        if self.synchronous_mode and with_sleep:
+            time.sleep(self.sleep_seconds)
+        return frame
+
     def run(self, *, max_ticks: int | None = None) -> int:
         """Run until interrupted or until max_ticks is reached."""
         executed_ticks = 0
@@ -38,12 +55,8 @@ class RunOperatorLoop:
             if max_ticks is not None and executed_ticks >= max_ticks:
                 break
 
-            self._handle_keyboard_once()
-            self._handle_follow_once()
-            self._tick_once()
+            self.step(with_tick=True, with_sleep=True)
             executed_ticks += 1
-            if self.synchronous_mode:
-                time.sleep(self.sleep_seconds)
 
         return executed_ticks
 

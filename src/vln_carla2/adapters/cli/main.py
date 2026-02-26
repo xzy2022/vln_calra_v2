@@ -1,4 +1,4 @@
-"""CLI entry point for scene / vehicle / spectator operations."""
+"""CLI entry point for scene / operator / vehicle / spectator operations."""
 
 from __future__ import annotations
 
@@ -17,8 +17,13 @@ from vln_carla2.app.carla_session import (
     read_runtime_offscreen_mode,
     record_runtime_session_config,
 )
+from vln_carla2.app.operator_bootstrap import (
+    OperatorWorkflowSettings,
+    run as run_operator_workflow,
+)
 from vln_carla2.app.operator_container import OperatorContainer, build_operator_container
 from vln_carla2.app.scene_editor_main import SceneEditorSettings, run as run_scene_editor
+from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.infrastructure.carla.server_launcher import (
     is_carla_server_reachable,
     is_loopback_host,
@@ -30,6 +35,7 @@ from vln_carla2.usecases.operator.models import SpawnVehicleRequest
 
 
 SCENE_COMMAND = "scene"
+OPERATOR_COMMAND = "operator"
 VEHICLE_COMMAND = "vehicle"
 SPECTATOR_COMMAND = "spectator"
 
@@ -59,6 +65,71 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scene_run.set_defaults(handler=_handle_scene_run)
 
+    operator_parser = root_subparsers.add_parser(
+        OPERATOR_COMMAND,
+        help="Operator workflow operations.",
+    )
+    operator_subparsers = operator_parser.add_subparsers(dest="operator_action", required=True)
+    operator_run = operator_subparsers.add_parser(
+        "run",
+        help="Run full operator workflow (resolve/spawn -> follow -> control).",
+    )
+    _add_scene_runtime_arguments(
+        operator_run,
+        defaults=defaults,
+        default_carla_exe=default_carla_exe,
+    )
+    operator_run.add_argument(
+        "--follow",
+        default="role:ego",
+        help="Target vehicle reference: actor:<id>, role:<name>, first, or positive integer id.",
+    )
+    operator_run.add_argument(
+        "--z",
+        type=float,
+        default=20.0,
+        help="Spectator altitude for top-down follow.",
+    )
+    _add_vehicle_spawn_arguments(operator_run)
+    operator_run.add_argument(
+        "--spawn-if-missing",
+        dest="spawn_if_missing",
+        action="store_true",
+        default=True,
+        help="Spawn vehicle from spawn arguments when follow reference is not resolved.",
+    )
+    operator_run.add_argument(
+        "--no-spawn-if-missing",
+        dest="spawn_if_missing",
+        action="store_false",
+        help="Fail when follow reference cannot be resolved.",
+    )
+    operator_run.add_argument(
+        "--strategy",
+        choices=("serial", "parallel"),
+        default="parallel",
+        help="Execution strategy: serial (operator warmup -> control) or parallel (step interleave).",
+    )
+    operator_run.add_argument(
+        "--steps",
+        type=int,
+        default=80,
+        help="Control loop steps.",
+    )
+    operator_run.add_argument(
+        "--target-speed-mps",
+        type=float,
+        default=5.0,
+        help="Control target speed in m/s.",
+    )
+    operator_run.add_argument(
+        "--operator-warmup-ticks",
+        type=int,
+        default=1,
+        help="Warmup ticks in serial strategy before control starts.",
+    )
+    operator_run.set_defaults(handler=_handle_operator_run)
+
     vehicle_parser = root_subparsers.add_parser(VEHICLE_COMMAND, help="Vehicle operations.")
     vehicle_subparsers = vehicle_parser.add_subparsers(dest="vehicle_action", required=True)
 
@@ -74,16 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     vehicle_spawn = vehicle_subparsers.add_parser("spawn", help="Spawn one vehicle actor.")
     _add_world_session_arguments(vehicle_spawn, defaults=defaults)
-    vehicle_spawn.add_argument(
-        "--blueprint-filter",
-        default="vehicle.tesla.model3",
-        help="CARLA vehicle blueprint filter.",
-    )
-    vehicle_spawn.add_argument("--spawn-x", type=float, default=0.038, help="Spawn location X.")
-    vehicle_spawn.add_argument("--spawn-y", type=float, default=15.320, help="Spawn location Y.")
-    vehicle_spawn.add_argument("--spawn-z", type=float, default=0.15, help="Spawn location Z.")
-    vehicle_spawn.add_argument("--spawn-yaw", type=float, default=180.0, help="Spawn yaw.")
-    vehicle_spawn.add_argument("--role-name", default="ego", help="role_name actor attribute.")
+    _add_vehicle_spawn_arguments(vehicle_spawn)
     vehicle_spawn.add_argument(
         "--output",
         choices=("table", "json"),
@@ -187,6 +249,69 @@ def _handle_scene_run(args: argparse.Namespace) -> int:
                 )
 
     print(f"[INFO] runtime stopped mode={args.mode} host={args.host} port={args.port}")
+    return 0
+
+
+def _handle_operator_run(args: argparse.Namespace) -> int:
+    launched_process: subprocess.Popen[bytes] | None = None
+    session_config = _build_session_config(args)
+    try:
+        vehicle_ref = parse_vehicle_ref(args.follow)
+    except VehicleRefParseError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return 2
+
+    settings = _build_operator_workflow_settings(args, vehicle_ref=vehicle_ref)
+
+    if settings.offscreen_mode and not args.launch_carla:
+        print(
+            "[WARN] --offscreen only affects launched CARLA server "
+            "(enable --launch-carla)."
+        )
+    if settings.no_rendering_mode and not args.launch_carla:
+        print(
+            "[WARN] --no-rendering applies world settings, but window "
+            "visibility depends on existing CARLA server startup flags."
+        )
+
+    if args.launch_carla:
+        launch_result = _maybe_launch_carla(
+            args,
+            session_config=session_config,
+        )
+        if isinstance(launch_result, int):
+            if launch_result != 0:
+                return launch_result
+        else:
+            launched_process = launch_result
+
+    try:
+        result = run_operator_workflow(settings)
+    except KeyboardInterrupt:
+        print("[INFO] interrupted by Ctrl+C")
+        return 0
+    except Exception as exc:
+        print(f"[ERROR] operator workflow failed: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if launched_process is not None and not args.keep_carla_server:
+            try:
+                terminate_carla_server(launched_process)
+                clear_runtime_session_config(args.host, args.port)
+            except Exception as exc:
+                print(
+                    f"[WARN] failed to terminate launched CARLA process: {exc}",
+                    file=sys.stderr,
+                )
+
+    print(
+        "[INFO] operator workflow finished "
+        f"strategy={result.strategy} vehicle_source={result.vehicle_source} "
+        f"actor_id={result.selected_vehicle.actor_id} "
+        f"operator_ticks={result.operator_ticks} "
+        f"control_steps={result.control_loop_result.executed_steps} "
+        f"host={args.host} port={args.port}"
+    )
     return 0
 
 
@@ -317,6 +442,39 @@ def _build_session_config(args: argparse.Namespace) -> CarlaSessionConfig:
 
 
 
+def _build_operator_workflow_settings(
+    args: argparse.Namespace,
+    *,
+    vehicle_ref: VehicleRef,
+) -> OperatorWorkflowSettings:
+    return OperatorWorkflowSettings(
+        host=args.host,
+        port=args.port,
+        timeout_seconds=args.timeout_seconds,
+        map_name=args.map_name,
+        synchronous_mode=args.mode == "sync",
+        fixed_delta_seconds=args.fixed_delta_seconds,
+        no_rendering_mode=args.no_rendering,
+        offscreen_mode=args.offscreen,
+        tick_sleep_seconds=args.tick_sleep_seconds,
+        spectator_initial_z=args.z,
+        vehicle_ref=vehicle_ref,
+        spawn_request=SpawnVehicleRequest(
+            blueprint_filter=args.blueprint_filter,
+            spawn_x=args.spawn_x,
+            spawn_y=args.spawn_y,
+            spawn_z=args.spawn_z,
+            spawn_yaw=args.spawn_yaw,
+            role_name=args.role_name,
+        ),
+        spawn_if_missing=args.spawn_if_missing,
+        strategy=args.strategy,
+        steps=args.steps,
+        target_speed_mps=args.target_speed_mps,
+        operator_warmup_ticks=args.operator_warmup_ticks,
+    )
+
+
 def _resolve_follow_vehicle_id(args: argparse.Namespace) -> int | None:
     follow_ref_raw = getattr(args, "follow", None)
     if follow_ref_raw is None:
@@ -444,6 +602,19 @@ def _add_world_session_arguments(
         help="Disable world rendering in CARLA world settings.",
     )
 
+
+
+def _add_vehicle_spawn_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--blueprint-filter",
+        default="vehicle.tesla.model3",
+        help="CARLA vehicle blueprint filter.",
+    )
+    parser.add_argument("--spawn-x", type=float, default=0.038, help="Spawn location X.")
+    parser.add_argument("--spawn-y", type=float, default=15.320, help="Spawn location Y.")
+    parser.add_argument("--spawn-z", type=float, default=0.15, help="Spawn location Z.")
+    parser.add_argument("--spawn-yaw", type=float, default=180.0, help="Spawn yaw.")
+    parser.add_argument("--role-name", default="ego", help="role_name actor attribute.")
 
 
 def _add_scene_runtime_arguments(

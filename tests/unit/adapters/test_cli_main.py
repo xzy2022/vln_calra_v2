@@ -440,3 +440,79 @@ def test_scene_run_rejects_removed_follow_flags(removed_flag: str, value: str) -
         cli_main.main(["scene", "run", removed_flag, value])
 
     assert exc.value.code == 2
+
+
+def test_build_parser_supports_operator_run_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli_main, "_load_env_from_dotenv", lambda: None)
+
+    parser = cli_main.build_parser()
+    args = parser.parse_args(["operator", "run"])
+
+    assert args.follow == "role:ego"
+    assert args.strategy == "parallel"
+    assert args.spawn_if_missing is True
+    assert args.steps == 80
+    assert args.target_speed_mps == 5.0
+    assert args.operator_warmup_ticks == 1
+
+
+def test_operator_run_builds_settings_and_calls_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_run_operator_workflow(settings: Any) -> Any:
+        captured["settings"] = settings
+        return argparse.Namespace(
+            strategy="parallel",
+            vehicle_source="resolved",
+            selected_vehicle=argparse.Namespace(actor_id=42),
+            operator_ticks=3,
+            control_loop_result=argparse.Namespace(executed_steps=3),
+        )
+
+    monkeypatch.setattr(cli_main, "run_operator_workflow", fake_run_operator_workflow)
+
+    exit_code = cli_main.main(
+        [
+            "operator",
+            "run",
+            "--follow",
+            "role:ego",
+            "--strategy",
+            "serial",
+            "--steps",
+            "3",
+            "--target-speed-mps",
+            "4.5",
+            "--operator-warmup-ticks",
+            "2",
+            "--z",
+            "30",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert captured["settings"].vehicle_ref.scheme == "role"
+    assert captured["settings"].vehicle_ref.value == "ego"
+    assert captured["settings"].strategy == "serial"
+    assert captured["settings"].steps == 3
+    assert captured["settings"].target_speed_mps == 4.5
+    assert captured["settings"].operator_warmup_ticks == 2
+    assert captured["settings"].spectator_initial_z == 30.0
+    assert "operator workflow finished" in stdout
+
+
+def test_operator_run_rejects_invalid_vehicle_ref(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cli_main, "run_operator_workflow", lambda _settings: None)
+
+    exit_code = cli_main.main(["operator", "run", "--follow", "bad-ref"])
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "Invalid vehicle ref" in stderr
