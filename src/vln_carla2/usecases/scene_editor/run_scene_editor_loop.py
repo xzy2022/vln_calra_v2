@@ -35,6 +35,13 @@ class SceneEditorFollowVehicleProtocol(Protocol):
         ...
 
 
+class SceneEditorSpawnVehicleProtocol(Protocol):
+    """Spawn one vehicle based on current scene-editor context."""
+
+    def run(self) -> Any:
+        ...
+
+
 @dataclass(slots=True)
 class RunSceneEditorLoop:
     """
@@ -53,10 +60,13 @@ class RunSceneEditorLoop:
     min_follow_z: float
     max_follow_z: float
     allow_mode_toggle: bool = True
+    allow_spawn_vehicle_hotkey: bool = True
     keyboard_input: SceneEditorKeyboardInputProtocol | None = None
     move_spectator: SceneEditorMoveSpectatorProtocol | None = None
     follow_vehicle_topdown: SceneEditorFollowVehicleProtocol | None = None
+    spawn_vehicle_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
     warn_fn: Callable[[str], None] = print
+    error_fn: Callable[[str], None] = print
     _warned_missing_follow_runtime: bool = field(
         init=False,
         default=False,
@@ -71,6 +81,7 @@ class RunSceneEditorLoop:
     def step(self, *, with_tick: bool = True, with_sleep: bool = True) -> int | None:
         """Execute one scene editor iteration and optionally tick/sleep."""
         input_snapshot = self._read_input_snapshot()
+        self._handle_spawn_hotkey(input_snapshot)
 
         if self.allow_mode_toggle and input_snapshot.pressed_toggle_mode:
             self._handle_toggle_mode()
@@ -146,6 +157,17 @@ class RunSceneEditorLoop:
         if followed:
             self._warned_missing_follow_runtime = False
 
+    def _handle_spawn_hotkey(self, input_snapshot: EditorInputSnapshot) -> None:
+        if not self.allow_spawn_vehicle_hotkey or not input_snapshot.pressed_spawn_vehicle:
+            return
+        if self.spawn_vehicle_at_spectator_xy is None:
+            self._error("spawn vehicle hotkey is unavailable in current runtime.")
+            return
+        try:
+            self.spawn_vehicle_at_spectator_xy.run()
+        except Exception as exc:
+            self._error(f"spawn vehicle failed: {exc}")
+
     def _warn_once_missing_follow_runtime(self) -> None:
         if self._warned_missing_follow_runtime:
             return
@@ -165,3 +187,5 @@ class RunSceneEditorLoop:
     def _warn(self, message: str) -> None:
         self.warn_fn(f"[WARN] {message}")
 
+    def _error(self, message: str) -> None:
+        self.error_fn(f"[ERROR] {message}")

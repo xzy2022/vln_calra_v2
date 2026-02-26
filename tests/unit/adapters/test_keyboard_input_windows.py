@@ -1,10 +1,12 @@
 from typing import Iterable
 
 from vln_carla2.adapters.cli.keyboard_input_windows import (
+    VK_1,
     VK_ADD,
     VK_DIVIDE,
     VK_DOWN,
     VK_LEFT,
+    VK_NUMPAD1,
     VK_OEM_2,
     VK_OEM_PLUS,
     VK_RIGHT,
@@ -82,6 +84,34 @@ def test_scene_editor_keyboard_toggle_triggers_again_after_key_release() -> None
     assert first.pressed_toggle_mode is True
     assert middle.pressed_toggle_mode is False
     assert third.pressed_toggle_mode is True
+
+
+def test_scene_editor_keyboard_spawn_is_edge_triggered() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+    reader._user32 = _FakeUser32({VK_1})
+
+    first = reader.read_snapshot()
+    second = reader.read_snapshot()
+
+    assert first.pressed_spawn_vehicle is True
+    assert second.pressed_spawn_vehicle is False
+
+
+def test_scene_editor_keyboard_spawn_triggers_again_after_key_release() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+
+    reader._user32 = _FakeUser32({VK_NUMPAD1})
+    first = reader.read_snapshot()
+
+    reader._user32 = _FakeUser32(set())
+    middle = reader.read_snapshot()
+
+    reader._user32 = _FakeUser32({VK_NUMPAD1})
+    third = reader.read_snapshot()
+
+    assert first.pressed_spawn_vehicle is True
+    assert middle.pressed_spawn_vehicle is False
+    assert third.pressed_spawn_vehicle is True
 
 
 def test_scene_editor_keyboard_maps_held_axes_and_toggle() -> None:

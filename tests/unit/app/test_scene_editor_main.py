@@ -69,6 +69,7 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
     assert container_kwargs["keyboard_z_step"] == 1.0
     assert container_kwargs["start_in_follow_mode"] is False
     assert container_kwargs["allow_mode_toggle"] is True
+    assert container_kwargs["allow_spawn_vehicle_hotkey"] is True
     assert runtime.max_ticks_calls == [3]
 
 
@@ -115,6 +116,7 @@ def test_run_passes_async_settings_to_session_and_container(monkeypatch) -> None
     assert container_kwargs["spectator_initial_z"] == 20.0
     assert container_kwargs["start_in_follow_mode"] is False
     assert container_kwargs["allow_mode_toggle"] is True
+    assert container_kwargs["allow_spawn_vehicle_hotkey"] is True
     assert runtime.max_ticks_calls == [2]
 
 
@@ -145,6 +147,7 @@ def test_run_passes_follow_vehicle_id_to_container(monkeypatch) -> None:
             spectator_initial_z=33.0,
             start_in_follow_mode=True,
             allow_mode_toggle=False,
+            allow_spawn_vehicle_hotkey=False,
         ),
         max_ticks=1,
     )
@@ -154,4 +157,5 @@ def test_run_passes_follow_vehicle_id_to_container(monkeypatch) -> None:
     assert captured["container_kwargs"]["spectator_initial_z"] == 33.0
     assert captured["container_kwargs"]["start_in_follow_mode"] is True
     assert captured["container_kwargs"]["allow_mode_toggle"] is False
+    assert captured["container_kwargs"]["allow_spawn_vehicle_hotkey"] is False
     assert runtime.max_ticks_calls == [1]

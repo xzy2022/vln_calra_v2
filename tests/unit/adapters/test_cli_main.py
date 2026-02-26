@@ -73,6 +73,7 @@ def test_main_scene_run_passes_sync_mode_settings(monkeypatch: pytest.MonkeyPatc
     assert captured["settings"].follow_vehicle_id is None
     assert captured["settings"].start_in_follow_mode is False
     assert captured["settings"].allow_mode_toggle is True
+    assert captured["settings"].allow_spawn_vehicle_hotkey is True
 
 
 def test_main_rejects_legacy_root_scene_args() -> None:
@@ -353,6 +354,7 @@ def test_spectator_follow_runs_scene_editor_with_resolved_follow_and_z(
     assert captured["settings"].spectator_initial_z == 30.0
     assert captured["settings"].start_in_follow_mode is True
     assert captured["settings"].allow_mode_toggle is False
+    assert captured["settings"].allow_spawn_vehicle_hotkey is False
 
 
 def test_spectator_follow_exits_cleanly_on_ctrl_c(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -5,10 +5,15 @@ from typing import Any
 
 from vln_carla2.adapters.cli.keyboard_input_windows import SceneEditorKeyboardInputWindows
 from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
 from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
 from vln_carla2.usecases.scene_editor.models import EditorMode, EditorState
 from vln_carla2.usecases.scene_editor.run_scene_editor_loop import RunSceneEditorLoop
+from vln_carla2.usecases.scene_editor.spawn_vehicle_at_spectator_xy import (
+    SpawnVehicleAtSpectatorXY,
+)
 from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
 
 
@@ -32,11 +37,13 @@ def build_scene_editor_container(
     keyboard_z_step: float = 1.0,
     start_in_follow_mode: bool = False,
     allow_mode_toggle: bool = True,
+    allow_spawn_vehicle_hotkey: bool = True,
 ) -> SceneEditorContainer:
     """Compose scene-editor dependencies and produce runtime."""
     keyboard_input = None
     move_spectator = None
     follow_vehicle_topdown = None
+    spawn_vehicle_at_spectator_xy = None
     state = EditorState(
         mode=EditorMode.FOLLOW if start_in_follow_mode else EditorMode.FREE,
         follow_vehicle_id=follow_vehicle_id,
@@ -65,6 +72,10 @@ def build_scene_editor_container(
                 vehicle_id=VehicleId(follow_vehicle_id),
                 z=spectator_initial_z,
             )
+        spawn_vehicle_at_spectator_xy = SpawnVehicleAtSpectatorXY(
+            spectator_camera=world_adapter,
+            spawn_vehicle=SpawnVehicle(spawner=CarlaVehicleSpawnerAdapter(world)),
+        )
 
     runtime = RunSceneEditorLoop(
         world=world,
@@ -74,9 +85,11 @@ def build_scene_editor_container(
         min_follow_z=spectator_min_z,
         max_follow_z=spectator_max_z,
         allow_mode_toggle=allow_mode_toggle,
+        allow_spawn_vehicle_hotkey=allow_spawn_vehicle_hotkey,
         keyboard_input=keyboard_input,
         move_spectator=move_spectator,
         follow_vehicle_topdown=follow_vehicle_topdown,
+        spawn_vehicle_at_spectator_xy=spawn_vehicle_at_spectator_xy,
     )
     return SceneEditorContainer(runtime=runtime)
 
@@ -88,4 +101,3 @@ def _initialize_spectator_top_down(*, world_adapter: CarlaWorldAdapter, initial_
     transform.rotation.yaw = 0.0
     transform.rotation.roll = 0.0
     world_adapter.set_spectator_transform(transform)
-

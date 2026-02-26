@@ -29,6 +29,7 @@ class SceneEditorSettings:
     keyboard_z_step: float = 1.0
     start_in_follow_mode: bool = False
     allow_mode_toggle: bool = True
+    allow_spawn_vehicle_hotkey: bool = True
 
     def __post_init__(self) -> None:
         if self.port <= 0:
@@ -77,5 +78,6 @@ def run(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
             keyboard_z_step=settings.keyboard_z_step,
             start_in_follow_mode=settings.start_in_follow_mode,
             allow_mode_toggle=settings.allow_mode_toggle,
+            allow_spawn_vehicle_hotkey=settings.allow_spawn_vehicle_hotkey,
         )
         return container.runtime.run(max_ticks=max_ticks)
