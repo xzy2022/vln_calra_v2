@@ -1,3 +1,4 @@
+import argparse
 import json
 from pathlib import Path
 from typing import Any
@@ -174,6 +175,39 @@ def test_main_exits_cleanly_on_ctrl_c(monkeypatch: pytest.MonkeyPatch) -> None:
     exit_code = cli_main.main(["scene", "run"])
 
     assert exit_code == 0
+
+
+def test_build_session_config_sets_offscreen_from_args() -> None:
+    args = argparse.Namespace(
+        host="127.0.0.1",
+        port=2000,
+        timeout_seconds=10.0,
+        map_name="Town10HD_Opt",
+        mode="sync",
+        fixed_delta_seconds=0.05,
+        no_rendering=False,
+        offscreen=True,
+    )
+
+    config = cli_main._build_session_config(args)
+
+    assert config.offscreen_mode is True
+
+
+def test_build_session_config_defaults_offscreen_false_when_arg_missing() -> None:
+    args = argparse.Namespace(
+        host="127.0.0.1",
+        port=2000,
+        timeout_seconds=10.0,
+        map_name="Town10HD_Opt",
+        mode="sync",
+        fixed_delta_seconds=0.05,
+        no_rendering=False,
+    )
+
+    config = cli_main._build_session_config(args)
+
+    assert config.offscreen_mode is False
 
 
 def test_main_rejects_invalid_mode_for_legacy_entry() -> None:

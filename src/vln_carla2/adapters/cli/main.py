@@ -153,6 +153,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _handle_scene_run(args: argparse.Namespace) -> int:
     launched_process: subprocess.Popen[bytes] | None = None
+    session_config = _build_session_config(args)
     settings = SceneEditorSettings(
         host=args.host,
         port=args.port,
@@ -178,7 +179,10 @@ def _handle_scene_run(args: argparse.Namespace) -> int:
         )
 
     if args.launch_carla:
-        launch_result = _maybe_launch_carla(args, settings=settings)
+        launch_result = _maybe_launch_carla(
+            args,
+            session_config=session_config,
+        )
         if isinstance(launch_result, int):
             if launch_result != 0:
                 return launch_result
@@ -328,6 +332,7 @@ def _with_operator_container(
 def _build_session_config(args: argparse.Namespace) -> CarlaSessionConfig:
     synchronous_mode = args.mode == "sync"
     no_rendering_mode = args.no_rendering
+    offscreen_mode = bool(getattr(args, "offscreen", False))
     return CarlaSessionConfig(
         host=args.host,
         port=args.port,
@@ -336,6 +341,7 @@ def _build_session_config(args: argparse.Namespace) -> CarlaSessionConfig:
         synchronous_mode=synchronous_mode,
         fixed_delta_seconds=args.fixed_delta_seconds,
         no_rendering_mode=no_rendering_mode,
+        offscreen_mode=offscreen_mode,
     )
 
 
@@ -370,24 +376,28 @@ def _resolve_follow_vehicle_id(args: argparse.Namespace) -> int | None:
 def _maybe_launch_carla(
     args: argparse.Namespace,
     *,
-    settings: SceneEditorSettings,
+    session_config: CarlaSessionConfig,
 ) -> subprocess.Popen[bytes] | int:
-    if not is_loopback_host(settings.host):
+    if not is_loopback_host(session_config.host):
         print(
-            f"[ERROR] --launch-carla only supports local host, got host={settings.host}",
+            "[ERROR] --launch-carla only supports local host, "
+            f"got host={session_config.host}",
             file=sys.stderr,
         )
         return 2
-    if is_carla_server_reachable(settings.host, settings.port):
+    if is_carla_server_reachable(session_config.host, session_config.port):
         if not args.reuse_existing_carla:
             print(
                 "[ERROR] CARLA already reachable on "
-                f"{settings.host}:{settings.port}. "
+                f"{session_config.host}:{session_config.port}. "
                 "Stop existing CARLA or add --reuse-existing-carla.",
                 file=sys.stderr,
             )
             return 2
-        print(f"[INFO] reusing existing CARLA on {settings.host}:{settings.port}")
+        print(
+            f"[INFO] reusing existing CARLA on "
+            f"{session_config.host}:{session_config.port}"
+        )
         return 0
 
     if not args.carla_exe:
@@ -402,19 +412,19 @@ def _maybe_launch_carla(
     try:
         launched_process = launch_carla_server(
             executable_path=args.carla_exe,
-            rpc_port=settings.port,
-            offscreen=settings.offscreen_mode,
-            no_rendering=settings.no_rendering_mode,
+            rpc_port=session_config.port,
+            offscreen=session_config.offscreen_mode,
+            no_rendering=session_config.no_rendering_mode,
             no_sound=not args.with_sound,
             quality_level=args.quality_level,
         )
         print(
             f"[INFO] launched CARLA pid={launched_process.pid} "
-            f"on {settings.host}:{settings.port}"
+            f"on {session_config.host}:{session_config.port}"
         )
         wait_for_carla_server(
-            host=settings.host,
-            port=settings.port,
+            host=session_config.host,
+            port=session_config.port,
             timeout_seconds=args.carla_startup_timeout_seconds,
             process=launched_process,
         )

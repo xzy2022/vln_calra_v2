@@ -21,6 +21,7 @@ def run(settings: Settings) -> LoopResult:
         synchronous_mode=True,
         fixed_delta_seconds=settings.fixed_delta_seconds,
         no_rendering_mode=settings.no_rendering_mode,
+        offscreen_mode=settings.offscreen_mode,
     )
 
     with managed_carla_session(session_config) as session:

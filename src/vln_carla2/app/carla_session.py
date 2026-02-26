@@ -21,6 +21,7 @@ class CarlaSessionConfig:
     synchronous_mode: bool
     fixed_delta_seconds: float
     no_rendering_mode: bool = False
+    offscreen_mode: bool = False
 
 
 @dataclass(slots=True)

@@ -44,6 +44,7 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
             synchronous_mode=True,
             fixed_delta_seconds=0.05,
             no_rendering_mode=True,
+            offscreen_mode=True,
             tick_sleep_seconds=0.02,
         ),
         max_ticks=3,
@@ -56,6 +57,7 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
     assert session_config.synchronous_mode is True
     assert session_config.fixed_delta_seconds == 0.05
     assert session_config.no_rendering_mode is True
+    assert session_config.offscreen_mode is True
     assert container_kwargs["world"] is fake_world
     assert container_kwargs["synchronous_mode"] is True
     assert container_kwargs["sleep_seconds"] == 0.02
@@ -100,6 +102,7 @@ def test_run_passes_async_settings_to_session_and_container(monkeypatch) -> None
     assert session_config.map_name == "Town10HD_Opt"
     assert session_config.synchronous_mode is False
     assert session_config.fixed_delta_seconds == 0.05
+    assert session_config.offscreen_mode is False
     assert container_kwargs["synchronous_mode"] is False
     assert container_kwargs["sleep_seconds"] == 0.01
     assert runtime.max_ticks_calls == [2]
