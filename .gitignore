@@ -5,6 +5,8 @@
 pytest-cache-files-*/
 .env
 
+artifacts/
+
 tmp\*
 
 references/*

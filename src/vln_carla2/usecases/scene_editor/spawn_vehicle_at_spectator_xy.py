@@ -5,9 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from vln_carla2.domain.model.scene_template import SceneObject, SceneObjectKind, ScenePose
 from vln_carla2.domain.services.spawn_rules import spawn_z_from_ground
 from vln_carla2.usecases.operator.models import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
+from vln_carla2.usecases.scene_editor.ports.scene_object_recorder import (
+    SceneObjectRecorderPort,
+)
 from vln_carla2.usecases.spectator.ports.spectator_camera import SpectatorCameraPort
 
 
@@ -29,6 +33,8 @@ class SpawnVehicleAtSpectatorXY:
     vehicle_z_offset: float = 0.05
     spawn_yaw: float = 180.0
     role_name: str = "ego"
+    object_kind: SceneObjectKind = SceneObjectKind.VEHICLE
+    recorder: SceneObjectRecorderPort | None = None
 
     def run(self) -> VehicleDescriptor:
         spectator_transform = self.spectator_camera.get_spectator_transform()
@@ -44,4 +50,19 @@ class SpawnVehicleAtSpectatorXY:
             spawn_yaw=float(self.spawn_yaw),
             role_name=self.role_name,
         )
-        return self.spawn_vehicle.run(request)
+        vehicle = self.spawn_vehicle.run(request)
+        if self.recorder is not None:
+            self.recorder.record(
+                SceneObject(
+                    kind=self.object_kind,
+                    blueprint_id=vehicle.type_id,
+                    role_name=vehicle.role_name,
+                    pose=ScenePose(
+                        x=float(request.spawn_x),
+                        y=float(request.spawn_y),
+                        z=float(request.spawn_z),
+                        yaw=float(request.spawn_yaw),
+                    ),
+                )
+            )
+        return vehicle

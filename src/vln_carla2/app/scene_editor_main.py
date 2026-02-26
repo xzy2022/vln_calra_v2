@@ -27,6 +27,8 @@ class SceneEditorSettings:
     spectator_max_z: float = 120.0
     keyboard_xy_step: float = 1.0
     keyboard_z_step: float = 1.0
+    scene_import_path: str | None = None
+    scene_export_path: str | None = None
     start_in_follow_mode: bool = False
     allow_mode_toggle: bool = True
     allow_spawn_vehicle_hotkey: bool = True
@@ -50,6 +52,10 @@ class SceneEditorSettings:
             raise ValueError("keyboard_xy_step must be >= 0")
         if self.keyboard_z_step < 0:
             raise ValueError("keyboard_z_step must be >= 0")
+        if self.scene_import_path is not None and not self.scene_import_path.strip():
+            raise ValueError("scene_import_path must not be empty when set")
+        if self.scene_export_path is not None and not self.scene_export_path.strip():
+            raise ValueError("scene_export_path must not be empty when set")
 
 
 def run(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
@@ -76,8 +82,18 @@ def run(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
             spectator_max_z=settings.spectator_max_z,
             keyboard_xy_step=settings.keyboard_xy_step,
             keyboard_z_step=settings.keyboard_z_step,
+            map_name=settings.map_name,
+            scene_export_path=settings.scene_export_path,
             start_in_follow_mode=settings.start_in_follow_mode,
             allow_mode_toggle=settings.allow_mode_toggle,
             allow_spawn_vehicle_hotkey=settings.allow_spawn_vehicle_hotkey,
         )
+        if settings.scene_import_path is not None:
+            if container.import_scene_template is None:
+                raise RuntimeError("scene import is unavailable in current runtime.")
+            imported_count = container.import_scene_template.run(settings.scene_import_path)
+            print(
+                "[INFO] scene imported: "
+                f"path={settings.scene_import_path} objects={imported_count}"
+            )
         return container.runtime.run(max_ticks=max_ticks)

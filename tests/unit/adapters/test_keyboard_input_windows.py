@@ -4,14 +4,18 @@ from vln_carla2.adapters.cli.keyboard_input_windows import (
     VK_1,
     VK_2,
     VK_ADD,
+    VK_CONTROL,
     VK_DIVIDE,
     VK_DOWN,
     VK_LEFT,
+    VK_LCONTROL,
     VK_NUMPAD1,
     VK_NUMPAD2,
     VK_OEM_2,
     VK_OEM_PLUS,
     VK_RIGHT,
+    VK_RCONTROL,
+    VK_S,
     VK_SUBTRACT,
     VK_UP,
     KeyboardInputWindows,
@@ -142,6 +146,34 @@ def test_scene_editor_keyboard_spawn_barrel_triggers_again_after_key_release() -
     assert first.pressed_spawn_barrel is True
     assert middle.pressed_spawn_barrel is False
     assert third.pressed_spawn_barrel is True
+
+
+def test_scene_editor_keyboard_export_scene_is_edge_triggered() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+    reader._user32 = _FakeUser32({VK_CONTROL, VK_S})
+
+    first = reader.read_snapshot()
+    second = reader.read_snapshot()
+
+    assert first.pressed_export_scene is True
+    assert second.pressed_export_scene is False
+
+
+def test_scene_editor_keyboard_export_scene_triggers_after_release() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+
+    reader._user32 = _FakeUser32({VK_LCONTROL, VK_S})
+    first = reader.read_snapshot()
+
+    reader._user32 = _FakeUser32(set())
+    middle = reader.read_snapshot()
+
+    reader._user32 = _FakeUser32({VK_RCONTROL, VK_S})
+    third = reader.read_snapshot()
+
+    assert first.pressed_export_scene is True
+    assert middle.pressed_export_scene is False
+    assert third.pressed_export_scene is True
 
 
 def test_scene_editor_keyboard_maps_held_axes_and_toggle() -> None:

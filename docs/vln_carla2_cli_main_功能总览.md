@@ -62,6 +62,8 @@ main
 - `--quality-level {Low,Epic}`：渲染质量，默认 `Epic`
 - `--with-sound`：启用声音（默认 `-nosound`）
 - `--keep-carla-server`：命令退出时不关闭由本命令启动的 CARLA
+- `--scene-import`：启动后、进入 loop 前导入场景 JSON
+- `--scene-export-path`：`Ctrl+S` 导出场景时使用的目标文件路径（可选）
 
 ### 3.3 运行时交互（键盘）
 
@@ -73,6 +75,7 @@ main
 - `/`：`Free` 与 `Follow` 之间切换（边沿触发，按住不重复切换）
 - `1`：按下时读取 spectator 当前 `X/Y`，将其投影到道路 waypoint，按 `spawn_z = ground_z + vehicle_offset(默认 0.05)` 生成车辆（边沿触发，按住不重复）
 - `2`：按下时读取 spectator 当前 `X/Y`，将其投影到道路 waypoint，按 `spawn_z = ground_z + vehicle_offset(默认 0.02)` 生成油桶（边沿触发，按住不重复）
+- `Ctrl+S`：导出当前会话内按 `1/2` 成功生成的对象为场景 JSON（边沿触发，按住不重复）
 
 ### 3.4 说明
 
@@ -80,6 +83,9 @@ main
 - `scene run` 默认未绑定跟随目标；若按 `/` 尝试进入 Follow，会告警并保持 `Free` 模式。
 - `scene run` 中按 `1` 失败时会输出 `[ERROR] spawn vehicle failed: ...`，按 `2` 失败时会输出 `[ERROR] spawn barrel failed: ...`，两者都不会自动重试。
 - 若按 `1` 或 `2` 时找不到可投影的道路 waypoint，会明确报错并终止本次生成。
+- `Ctrl+S` 导出成功时输出 `[INFO] scene exported: <path>`；失败时输出 `[ERROR] scene export failed: ...`。
+- 若未显式传 `--scene-export-path`，默认写入当前目录：`scene_export_<YYYYMMDD_HHMMSS>.json`。
+- 通过 `--scene-import <path>` 导入时，若文件 `map_name` 与当前 `--map-name` 不一致会直接报错并退出。
 
 ## 4. operator run（大闭环编排）
 
@@ -233,7 +239,16 @@ python -m vln_carla2.adapters.cli.main scene run --launch-carla --host 127.0.0.1
 - `/` 尝试切换 Follow（若未配置跟随目标会告警并保持 Free）
 - `1` 按当前 spectator `X/Y` 生成一辆车（道路 ground z + vehicle_z_offset=0.05 偏移）
 - `2` 按当前 spectator `X/Y` 生成一个油桶（道路 ground z + vehicle_z_offset=0.02 偏移）
-`src\vln_carla2\app\scene_editor_container.py`中。
+- `Ctrl+S` 导出当前会话场景到 JSON
+
+导入：
+```bash
+python -m vln_carla2.adapters.cli.main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-import artifacts/scene_in.json  --launch-carla 
+```
+导出：
+```bash
+python -m vln_carla2.adapters.cli.main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
+```
 
 ### 11.3 单命令执行大闭环（按 role 发现或按需创建）
 

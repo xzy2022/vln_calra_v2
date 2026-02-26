@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from vln_carla2.domain.model.scene_template import SceneObject, SceneObjectKind
 from vln_carla2.usecases.operator.models import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.scene_editor.spawn_vehicle_at_spectator_xy import (
     SpawnVehicleAtSpectatorXY,
@@ -59,6 +60,14 @@ class _FakeSpawnVehicle:
     def run(self, request: SpawnVehicleRequest) -> VehicleDescriptor:
         self.calls.append(request)
         return self.created
+
+
+class _FakeRecorder:
+    def __init__(self) -> None:
+        self.calls: list[SceneObject] = []
+
+    def record(self, obj: SceneObject) -> None:
+        self.calls.append(obj)
 
 
 def test_spawn_vehicle_at_spectator_xy_reads_xy_and_uses_ground_z_plus_offset() -> None:
@@ -168,3 +177,41 @@ def test_spawn_vehicle_at_spectator_xy_supports_barrel_blueprint_and_offset() ->
     assert request.spawn_y == 2.5
     assert request.spawn_z == 5.0
     assert request.role_name == "barrel"
+
+
+def test_spawn_vehicle_at_spectator_xy_records_spawned_scene_object() -> None:
+    created = VehicleDescriptor(
+        actor_id=301,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    spawn_vehicle = _FakeSpawnVehicle(created=created)
+    recorder = _FakeRecorder()
+    usecase = SpawnVehicleAtSpectatorXY(
+        spectator_camera=_FakeSpectatorCamera(
+            _FakeTransform(
+                location=_FakeLocation(x=9.0, y=8.0, z=10.0),
+                rotation=_FakeRotation(),
+            )
+        ),
+        ground_z_resolver=_FakeGroundResolver(ground_z=1.0),
+        spawn_vehicle=spawn_vehicle,
+        spawn_yaw=175.0,
+        object_kind=SceneObjectKind.VEHICLE,
+        recorder=recorder,
+    )
+
+    usecase.run()
+
+    assert len(recorder.calls) == 1
+    obj = recorder.calls[0]
+    assert obj.kind is SceneObjectKind.VEHICLE
+    assert obj.blueprint_id == "vehicle.tesla.model3"
+    assert obj.role_name == "ego"
+    assert obj.pose.x == 9.0
+    assert obj.pose.y == 8.0
+    assert obj.pose.z == 1.05
+    assert obj.pose.yaw == 175.0

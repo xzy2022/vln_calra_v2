@@ -13,6 +13,10 @@ VK_LEFT = 0x25
 VK_UP = 0x26
 VK_RIGHT = 0x27
 VK_DOWN = 0x28
+VK_CONTROL = 0x11
+VK_LCONTROL = 0xA2
+VK_RCONTROL = 0xA3
+VK_S = 0x53
 VK_1 = 0x31
 VK_2 = 0x32
 VK_NUMPAD1 = 0x61
@@ -76,6 +80,7 @@ class SceneEditorKeyboardInputWindows:
     _toggle_down_last_tick: bool = field(init=False, default=False, repr=False)
     _spawn_down_last_tick: bool = field(init=False, default=False, repr=False)
     _spawn_barrel_down_last_tick: bool = field(init=False, default=False, repr=False)
+    _export_scene_down_last_tick: bool = field(init=False, default=False, repr=False)
 
     def __post_init__(self) -> None:
         self._user32 = _load_user32()
@@ -85,6 +90,7 @@ class SceneEditorKeyboardInputWindows:
             self._toggle_down_last_tick = False
             self._spawn_down_last_tick = False
             self._spawn_barrel_down_last_tick = False
+            self._export_scene_down_last_tick = False
             return EditorInputSnapshot.zero()
 
         up = self._is_pressed(VK_UP)
@@ -96,6 +102,12 @@ class SceneEditorKeyboardInputWindows:
         toggle_down = self._is_pressed(VK_OEM_2) or self._is_pressed(VK_DIVIDE)
         spawn_down = self._is_pressed(VK_1) or self._is_pressed(VK_NUMPAD1)
         spawn_barrel_down = self._is_pressed(VK_2) or self._is_pressed(VK_NUMPAD2)
+        ctrl_down = (
+            self._is_pressed(VK_CONTROL)
+            or self._is_pressed(VK_LCONTROL)
+            or self._is_pressed(VK_RCONTROL)
+        )
+        export_scene_down = ctrl_down and self._is_pressed(VK_S)
 
         held_dx = self.xy_step if up and not down else -self.xy_step if down and not up else 0.0
         held_dy = self.xy_step if right and not left else -self.xy_step if left and not right else 0.0
@@ -109,6 +121,8 @@ class SceneEditorKeyboardInputWindows:
             spawn_barrel_down and not self._spawn_barrel_down_last_tick
         )
         self._spawn_barrel_down_last_tick = spawn_barrel_down
+        pressed_export_scene = export_scene_down and not self._export_scene_down_last_tick
+        self._export_scene_down_last_tick = export_scene_down
 
         return EditorInputSnapshot(
             held_dx=held_dx,
@@ -117,6 +131,7 @@ class SceneEditorKeyboardInputWindows:
             pressed_toggle_mode=pressed_toggle_mode,
             pressed_spawn_vehicle=pressed_spawn_vehicle,
             pressed_spawn_barrel=pressed_spawn_barrel,
+            pressed_export_scene=pressed_export_scene,
         )
 
     def _is_pressed(self, vk_code: int) -> bool:

@@ -70,6 +70,19 @@ class _FakeSpawnAction:
             raise self.error
 
 
+class _FakeExportAction:
+    def __init__(self, *, path: str = "scene.json", error: Exception | None = None) -> None:
+        self.calls = 0
+        self.path = path
+        self.error = error
+
+    def run(self) -> str:
+        self.calls += 1
+        if self.error is not None:
+            raise self.error
+        return self.path
+
+
 def _make_loop(
     *,
     state: EditorState,
@@ -78,8 +91,10 @@ def _make_loop(
     move_spectator: _FakeMoveSpectator | None = None,
     warnings: list[str] | None = None,
     errors: list[str] | None = None,
+    infos: list[str] | None = None,
     spawn_vehicle: _FakeSpawnAction | None = None,
     spawn_barrel: _FakeSpawnAction | None = None,
+    export_scene: _FakeExportAction | None = None,
     allow_spawn_vehicle_hotkey: bool = True,
 ) -> RunSceneEditorLoop:
     world = _FakeWorld()
@@ -98,6 +113,8 @@ def _make_loop(
         follow_vehicle_topdown=follower,
         spawn_vehicle_at_spectator_xy=spawn_vehicle,
         spawn_barrel_at_spectator_xy=spawn_barrel,
+        export_scene=export_scene,
+        info_fn=(infos.append if infos is not None else print),
         warn_fn=(warnings.append if warnings is not None else print),
         error_fn=(errors.append if errors is not None else print),
     )
@@ -323,3 +340,45 @@ def test_spawn_hotkeys_error_messages_are_distinct() -> None:
     assert len(errors) == 2
     assert errors[0].startswith("[ERROR] spawn vehicle failed:")
     assert errors[1].startswith("[ERROR] spawn barrel failed:")
+
+
+def test_export_hotkey_triggers_once_per_pressed_snapshot() -> None:
+    export = _FakeExportAction(path="scene_a.json")
+    infos: list[str] = []
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[
+            EditorInputSnapshot(pressed_export_scene=True),
+            EditorInputSnapshot(pressed_export_scene=False),
+            EditorInputSnapshot(pressed_export_scene=True),
+        ],
+        move_spectator=_FakeMoveSpectator(),
+        export_scene=export,
+        infos=infos,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert export.calls == 2
+    assert len(infos) == 2
+    assert infos[0] == "[INFO] scene exported: scene_a.json"
+
+
+def test_export_hotkey_errors_are_reported() -> None:
+    export = _FakeExportAction(error=RuntimeError("permission denied"))
+    errors: list[str] = []
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[EditorInputSnapshot(pressed_export_scene=True)],
+        move_spectator=_FakeMoveSpectator(),
+        export_scene=export,
+        errors=errors,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert export.calls == 1
+    assert len(errors) == 1
+    assert errors[0].startswith("[ERROR] scene export failed:")

@@ -63,6 +63,17 @@ def build_parser() -> argparse.ArgumentParser:
         defaults=defaults,
         default_carla_exe=default_carla_exe,
     )
+    scene_run.add_argument(
+        "--scene-import",
+        help="Path to one scene template JSON file loaded before loop starts.",
+    )
+    scene_run.add_argument(
+        "--scene-export-path",
+        help=(
+            "Optional export path used by Ctrl+S scene export hotkey. "
+            "When omitted, writes scene_export_<time>.json in current directory."
+        ),
+    )
     scene_run.set_defaults(handler=_handle_scene_run)
 
     operator_parser = root_subparsers.add_parser(
@@ -205,6 +216,8 @@ def _handle_scene_run(args: argparse.Namespace) -> int:
         no_rendering_mode=args.no_rendering,
         offscreen_mode=args.offscreen,
         tick_sleep_seconds=args.tick_sleep_seconds,
+        scene_import_path=args.scene_import,
+        scene_export_path=args.scene_export_path,
         follow_vehicle_id=None,
         start_in_follow_mode=False,
         allow_mode_toggle=True,

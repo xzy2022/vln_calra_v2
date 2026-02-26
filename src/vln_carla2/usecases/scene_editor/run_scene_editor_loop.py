@@ -42,6 +42,13 @@ class SceneEditorSpawnVehicleProtocol(Protocol):
         ...
 
 
+class SceneEditorExportSceneProtocol(Protocol):
+    """Export current scene template and return saved path."""
+
+    def run(self) -> str:
+        ...
+
+
 @dataclass(slots=True)
 class RunSceneEditorLoop:
     """
@@ -66,6 +73,8 @@ class RunSceneEditorLoop:
     follow_vehicle_topdown: SceneEditorFollowVehicleProtocol | None = None
     spawn_vehicle_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
     spawn_barrel_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
+    export_scene: SceneEditorExportSceneProtocol | None = None
+    info_fn: Callable[[str], None] = print
     warn_fn: Callable[[str], None] = print
     error_fn: Callable[[str], None] = print
     _warned_missing_follow_runtime: bool = field(
@@ -83,6 +92,7 @@ class RunSceneEditorLoop:
         """Execute one scene editor iteration and optionally tick/sleep."""
         input_snapshot = self._read_input_snapshot()
         self._handle_spawn_hotkeys(input_snapshot)
+        self._handle_export_hotkey(input_snapshot)
 
         if self.allow_mode_toggle and input_snapshot.pressed_toggle_mode:
             self._handle_toggle_mode()
@@ -180,6 +190,18 @@ class RunSceneEditorLoop:
                 except Exception as exc:
                     self._error(f"spawn barrel failed: {exc}")
 
+    def _handle_export_hotkey(self, input_snapshot: EditorInputSnapshot) -> None:
+        if not input_snapshot.pressed_export_scene:
+            return
+        if self.export_scene is None:
+            self._error("scene export hotkey is unavailable in current runtime.")
+            return
+        try:
+            path = self.export_scene.run()
+            self._info(f"scene exported: {path}")
+        except Exception as exc:
+            self._error(f"scene export failed: {exc}")
+
     def _warn_once_missing_follow_runtime(self) -> None:
         if self._warned_missing_follow_runtime:
             return
@@ -198,6 +220,9 @@ class RunSceneEditorLoop:
 
     def _warn(self, message: str) -> None:
         self.warn_fn(f"[WARN] {message}")
+
+    def _info(self, message: str) -> None:
+        self.info_fn(f"[INFO] {message}")
 
     def _error(self, message: str) -> None:
         self.error_fn(f"[ERROR] {message}")

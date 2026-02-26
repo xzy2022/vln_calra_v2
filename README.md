@@ -12,7 +12,13 @@
 
 新的cli执行命令
 ```
-python -m vln_carla2.adapters.cli.main --launch-carla --no-rendering
+python -m vln_carla2.adapters.cli.main scene run --launch-carla --no-rendering
+```
+
+scene editor 场景导入/导出（按键 `1/2` 生成对象，`Ctrl+S` 导出）：
+
+```bash
+python -m vln_carla2.adapters.cli.main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
 ```
 
 ### 1.2 参考文档说明

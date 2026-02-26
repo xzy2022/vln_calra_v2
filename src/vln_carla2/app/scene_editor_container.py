@@ -4,12 +4,22 @@ from dataclasses import dataclass
 from typing import Any
 
 from vln_carla2.adapters.cli.keyboard_input_windows import SceneEditorKeyboardInputWindows
+from vln_carla2.domain.model.scene_template import SceneObjectKind
 from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
+    CarlaSceneObjectSpawnerAdapter,
+)
 from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
+from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
 from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
+from vln_carla2.usecases.scene_editor.export_scene_template import ExportSceneTemplate
+from vln_carla2.usecases.scene_editor.import_scene_template import ImportSceneTemplate
 from vln_carla2.usecases.scene_editor.models import EditorMode, EditorState
+from vln_carla2.usecases.scene_editor.record_spawned_scene_object import (
+    RecordSpawnedSceneObject,
+)
 from vln_carla2.usecases.scene_editor.run_scene_editor_loop import RunSceneEditorLoop
 from vln_carla2.usecases.scene_editor.spawn_vehicle_at_spectator_xy import (
     SpawnVehicleAtSpectatorXY,
@@ -22,6 +32,7 @@ class SceneEditorContainer:
     """Built runtime dependencies for scene editor loop."""
 
     runtime: RunSceneEditorLoop
+    import_scene_template: ImportSceneTemplate | None = None
 
 
 def build_scene_editor_container(
@@ -35,6 +46,8 @@ def build_scene_editor_container(
     spectator_max_z: float = 120.0,
     keyboard_xy_step: float = 1.0,
     keyboard_z_step: float = 1.0,
+    map_name: str,
+    scene_export_path: str | None = None,
     start_in_follow_mode: bool = False,
     allow_mode_toggle: bool = True,
     allow_spawn_vehicle_hotkey: bool = True,
@@ -45,6 +58,8 @@ def build_scene_editor_container(
     follow_vehicle_topdown = None
     spawn_vehicle_at_spectator_xy = None
     spawn_barrel_at_spectator_xy = None
+    export_scene = None
+    import_scene_template = None
     state = EditorState(
         mode=EditorMode.FOLLOW if start_in_follow_mode else EditorMode.FREE,
         follow_vehicle_id=follow_vehicle_id,
@@ -73,10 +88,25 @@ def build_scene_editor_container(
                 vehicle_id=VehicleId(follow_vehicle_id),
                 z=spectator_initial_z,
             )
+        scene_object_recorder = RecordSpawnedSceneObject()
+        scene_template_store = SceneTemplateJsonStore()
+        import_scene_template = ImportSceneTemplate(
+            store=scene_template_store,
+            spawner=CarlaSceneObjectSpawnerAdapter(world),
+            expected_map_name=map_name,
+        )
+        export_scene = ExportSceneTemplate(
+            store=scene_template_store,
+            recorder=scene_object_recorder,
+            map_name=map_name,
+            export_path=scene_export_path,
+        )
         spawn_vehicle_at_spectator_xy = SpawnVehicleAtSpectatorXY(
             spectator_camera=world_adapter,
             ground_z_resolver=world_adapter,
             spawn_vehicle=SpawnVehicle(spawner=CarlaVehicleSpawnerAdapter(world)),
+            object_kind=SceneObjectKind.VEHICLE,
+            recorder=scene_object_recorder,
         )
         spawn_barrel_at_spectator_xy = SpawnVehicleAtSpectatorXY(
             spectator_camera=world_adapter,
@@ -85,6 +115,8 @@ def build_scene_editor_container(
             blueprint_filter="static.prop.barrel*",
             vehicle_z_offset=0.02,
             role_name="barrel",
+            object_kind=SceneObjectKind.BARREL,
+            recorder=scene_object_recorder,
         )
 
     runtime = RunSceneEditorLoop(
@@ -101,8 +133,12 @@ def build_scene_editor_container(
         follow_vehicle_topdown=follow_vehicle_topdown,
         spawn_vehicle_at_spectator_xy=spawn_vehicle_at_spectator_xy,
         spawn_barrel_at_spectator_xy=spawn_barrel_at_spectator_xy,
+        export_scene=export_scene,
     )
-    return SceneEditorContainer(runtime=runtime)
+    return SceneEditorContainer(
+        runtime=runtime,
+        import_scene_template=import_scene_template,
+    )
 
 
 def _initialize_spectator_top_down(*, world_adapter: CarlaWorldAdapter, initial_z: float) -> None:

@@ -70,6 +70,8 @@ def test_main_scene_run_passes_sync_mode_settings(monkeypatch: pytest.MonkeyPatc
     assert captured["settings"].no_rendering_mode is True
     assert captured["settings"].offscreen_mode is False
     assert captured["settings"].tick_sleep_seconds == 0.01
+    assert captured["settings"].scene_import_path is None
+    assert captured["settings"].scene_export_path is None
     assert captured["settings"].follow_vehicle_id is None
     assert captured["settings"].start_in_follow_mode is False
     assert captured["settings"].allow_mode_toggle is True
@@ -159,6 +161,32 @@ def test_main_exits_cleanly_on_ctrl_c(monkeypatch: pytest.MonkeyPatch) -> None:
     exit_code = cli_main.main(["scene", "run"])
 
     assert exit_code == 0
+
+
+def test_main_scene_run_passes_scene_import_and_export_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_run(settings: Any) -> None:
+        captured["settings"] = settings
+
+    monkeypatch.setattr(cli_main, "run_scene_editor", fake_run)
+
+    exit_code = cli_main.main(
+        [
+            "scene",
+            "run",
+            "--scene-import",
+            "fixtures/in_scene.json",
+            "--scene-export-path",
+            "artifacts/out_scene.json",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["settings"].scene_import_path == "fixtures/in_scene.json"
+    assert captured["settings"].scene_export_path == "artifacts/out_scene.json"
 
 
 def test_build_session_config_sets_offscreen_from_args() -> None:
