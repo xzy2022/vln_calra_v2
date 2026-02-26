@@ -74,6 +74,7 @@ def build_scene_editor_container(
             )
         spawn_vehicle_at_spectator_xy = SpawnVehicleAtSpectatorXY(
             spectator_camera=world_adapter,
+            ground_z_resolver=world_adapter,
             spawn_vehicle=SpawnVehicle(spawner=CarlaVehicleSpawnerAdapter(world)),
         )
 

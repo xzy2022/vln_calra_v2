@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.infrastructure.carla.types import require_carla
 from vln_carla2.usecases.spectator.ports.spectator_transform import SpectatorTransform
 
 
@@ -29,3 +30,15 @@ class CarlaWorldAdapter:
         if actor is None:
             return None
         return actor.get_transform()
+
+    def resolve_ground_z(self, x: float, y: float) -> float:
+        """Resolve road-projected ground Z for the given XY."""
+        carla = require_carla()
+        world_map = self._world.get_map()
+        location = carla.Location(x=float(x), y=float(y), z=0.0)
+        waypoint = world_map.get_waypoint(location, project_to_road=True)
+        if waypoint is None:
+            raise RuntimeError(
+                f"no road waypoint found near spectator XY (x={x:.3f}, y={y:.3f})"
+            )
+        return float(waypoint.transform.location.z)

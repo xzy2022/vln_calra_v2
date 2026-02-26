@@ -71,13 +71,14 @@ main
   - `Free` 模式：直接调整 spectator Z
   - `Follow` 模式：调整 `follow_z`（跟随高度）
 - `/`：`Free` 与 `Follow` 之间切换（边沿触发，按住不重复切换）
-- `1`：按下时读取 spectator 当前 `X/Y`，使用固定 `Z=0.15` 生成车辆（边沿触发，按住不重复）
+- `1`：按下时读取 spectator 当前 `X/Y`，将其投影到道路 waypoint，按 `spawn_z = ground_z + vehicle_offset(默认 0.05)` 生成车辆（边沿触发，按住不重复）
 
 ### 3.4 说明
 
 - `scene run` 不再支持 `--follow` 与 `--follow-vehicle-id`。
 - `scene run` 默认未绑定跟随目标；若按 `/` 尝试进入 Follow，会告警并保持 `Free` 模式。
 - `scene run` 中按 `1` 生成失败时会输出 `[ERROR] spawn vehicle failed: ...`，且不会自动重试。
+- 若按 `1` 时找不到可投影的道路 waypoint，会明确报错并终止本次生成。
 
 ## 4. operator run（大闭环编排）
 
@@ -229,7 +230,7 @@ python -m vln_carla2.adapters.cli.main scene run --launch-carla --host 127.0.0.1
 - `↑/↓/←/→` 平移 spectator
 - `+/-` 调整高度
 - `/` 尝试切换 Follow（若未配置跟随目标会告警并保持 Free）
-- `1` 按当前 spectator `X/Y` 生成一辆车（固定 `Z=0.15`）
+- `1` 按当前 spectator `X/Y` 生成一辆车（道路 ground z + 0.15 偏移）
 
 ### 11.3 单命令执行大闭环（按 role 发现或按需创建）
 
