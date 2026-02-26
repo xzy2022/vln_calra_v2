@@ -49,6 +49,7 @@ main
 - 启动/连接 CARLA 后运行 scene editor 循环（同步/异步模式）。
 - 可选自动拉起本地 CARLA 进程。
 - 默认以 `Free` 模式运行。
+- scene run 里，follow 目标目前被固定为 None。因此 / 切换到 Follow 时会检查 follow_vehicle_id，必然告警。因为这个功能似乎不是必须的，先不深究。
 
 ### 3.2 专属参数
 
