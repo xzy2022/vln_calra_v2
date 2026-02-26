@@ -24,7 +24,7 @@ def build_carla_server_command(
     offscreen: bool = False,
     no_rendering: bool = False,
     no_sound: bool = True,
-    quality_level: str | None = None,
+    quality_level: str = "Epic",
     extra_args: Sequence[str] | None = None,
 ) -> list[str]:
     """Build a CarlaUE4 launch command with optional rendering flags."""
@@ -44,12 +44,11 @@ def build_carla_server_command(
         command.append("--no-rendering")
     if no_sound:
         command.append("-nosound")
-    if quality_level is not None:
-        normalized_quality = quality_level.strip().title()
-        if normalized_quality not in _QUALITY_LEVELS:
-            allowed = ", ".join(sorted(_QUALITY_LEVELS))
-            raise ValueError(f"quality_level must be one of: {allowed}")
-        command.append(f"-quality-level={normalized_quality}")
+    normalized_quality = quality_level.strip().title()
+    if normalized_quality not in _QUALITY_LEVELS:
+        allowed = ", ".join(sorted(_QUALITY_LEVELS))
+        raise ValueError(f"quality_level must be one of: {allowed}")
+    command.append(f"-quality-level={normalized_quality}")
     if extra_args:
         command.extend(extra_args)
     return command
@@ -82,7 +81,7 @@ def launch_carla_server(
     offscreen: bool = False,
     no_rendering: bool = False,
     no_sound: bool = True,
-    quality_level: str | None = None,
+    quality_level: str = "Epic",
     extra_args: Sequence[str] | None = None,
 ) -> subprocess.Popen[bytes]:
     """Start CarlaUE4 and return the process handle."""

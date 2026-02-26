@@ -1,7 +1,6 @@
 """Application runtime settings."""
 
 from dataclasses import dataclass, field
-from typing import Literal
 
 
 @dataclass(slots=True)
@@ -23,7 +22,7 @@ class Settings:
     timeout_seconds: float = 10.0
     map_name: str = "Town10HD_Opt"
     fixed_delta_seconds: float = 0.05
-    render_mode: Literal["normal", "offscreen", "no-rendering"] = "normal"
+    no_rendering: bool = False
     steps: int = 80
     target_speed_mps: float = 5.0
     vehicle_blueprint: str = "vehicle.tesla.model3"
@@ -44,10 +43,8 @@ class Settings:
             raise ValueError("map_name must not be empty")
         if not self.vehicle_blueprint:
             raise ValueError("vehicle_blueprint must not be empty")
-        if self.render_mode not in {"normal", "offscreen", "no-rendering"}:
-            raise ValueError("render_mode must be one of: normal, offscreen, no-rendering")
 
     @property
     def no_rendering_mode(self) -> bool:
         """Compatibility mapping for CARLA WorldSettings API."""
-        return self.render_mode == "no-rendering"
+        return self.no_rendering

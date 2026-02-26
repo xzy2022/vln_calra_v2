@@ -19,6 +19,7 @@ def test_build_carla_server_command_for_normal_mode() -> None:
         str(executable),
         "--carla-rpc-port=2000",
         "-nosound",
+        "-quality-level=Epic",
     ]
 
 

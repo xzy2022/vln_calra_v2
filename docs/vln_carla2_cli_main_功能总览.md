@@ -41,7 +41,7 @@ main
 - `--map-name`：地图名，默认 `Town10HD_Opt`
 - `--mode {sync,async}`：运行模式，默认 `sync`
 - `--fixed-delta-seconds`：同步模式固定步长，默认 `0.05`
-- `--render-mode {normal,no-rendering}`：世界渲染模式，默认 `normal`
+- `--no-rendering`：关闭世界渲染（布尔开关，默认False，即开启渲染）
 
 ## 3. scene run（场景运行）
 
@@ -56,12 +56,12 @@ main
 - `--tick-sleep-seconds`：同步模式 tick 间 sleep，默认 `0.05`
 - `--follow`：跟随引用（`actor:<id>` / `role:<name>` / `first` / 正整数 id）
 - `--follow-vehicle-id`：旧版跟随参数（与 `--follow` 互斥）
-- `--window-mode {onscreen,offscreen}`：仅对 `--launch-carla` 启动的服务生效
+- `--offscreen`：仅对 `--launch-carla` 启动的服务生效
 - `--launch-carla`：本地拉起 CarlaUE4
 - `--reuse-existing-carla`：端口已有 CARLA 时复用，不报错退出
 - `--carla-exe`：CarlaUE4 可执行文件路径（可由 `CARLA_UE4_EXE` 提供默认值）
 - `--carla-startup-timeout-seconds`：启动等待超时，默认 `45.0`
-- `--quality-level {Low,Epic}`：渲染质量
+- `--quality-level {Low,Epic} (default: Epic)`：渲染质量
 - `--with-sound`：启用声音（默认用 `-nosound`）
 - `--keep-carla-server`：命令退出时不关闭由本命令启动的 CARLA
 
@@ -71,8 +71,8 @@ main
 - 指定 `--launch-carla` 且端口已有 CARLA：
   - 未加 `--reuse-existing-carla`：报错并退出
   - 加了 `--reuse-existing-carla`：复用现有服务
-- `--window-mode offscreen` 但未 `--launch-carla`：打印警告（不会影响现有外部服务）
-- `--render-mode no-rendering` 但未 `--launch-carla`：打印警告
+- `--offscreen` 但未 `--launch-carla`：打印警告（不会影响现有外部服务）
+- `--no-rendering` 但未 `--launch-carla`：打印警告
 - `Ctrl+C`：优雅退出，返回成功码
 
 ## 4. vehicle list（车辆列表）
@@ -186,3 +186,4 @@ python -m vln_carla2.adapters.cli.main scene run --host 127.0.0.1 --port 2000 --
 ```bash
 python -m vln_carla2.adapters.cli.main spectator follow --host 127.0.0.1 --port 2000 --mode sync --ref role:ego --z 20
 ```
+

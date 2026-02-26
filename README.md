@@ -12,7 +12,7 @@
 
 新的cli执行命令
 ```
-python -m vln_carla2.adapters.cli.main --launch-carla --render-mode no-rendering --window-mode onscreen
+python -m vln_carla2.adapters.cli.main --launch-carla --no-rendering
 ```
 
 ### 1.2 参考文档说明
@@ -58,3 +58,4 @@ pytest tests/unit -q
 ```bash
 pytest tests/integration/test_control_loop_smoke.py -m integration -q
 ```
+

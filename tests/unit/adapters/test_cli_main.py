@@ -62,8 +62,7 @@ def test_main_scene_run_passes_sync_mode_settings(monkeypatch: pytest.MonkeyPatc
             "run",
             "--mode",
             "sync",
-            "--render-mode",
-            "no-rendering",
+            "--no-rendering",
             "--tick-sleep-seconds",
             "0.01",
         ]
@@ -148,16 +147,15 @@ def test_main_launches_carla_with_offscreen_and_no_rendering(monkeypatch: pytest
             "--launch-carla",
             "--carla-exe",
             "C:/CARLA/CarlaUE4.exe",
-            "--window-mode",
-            "offscreen",
-            "--render-mode",
-            "no-rendering",
+            "--offscreen",
+            "--no-rendering",
         ]
     )
 
     assert exit_code == 0
     assert captured["launch_kwargs"]["offscreen"] is True
     assert captured["launch_kwargs"]["no_rendering"] is True
+    assert captured["launch_kwargs"]["quality_level"] == "Epic"
     assert captured["terminated"] == 4321
 
 
@@ -175,6 +173,20 @@ def test_main_exits_cleanly_on_ctrl_c(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_main_rejects_invalid_mode_for_legacy_entry() -> None:
     with pytest.raises(SystemExit) as exc:
         cli_main.main(["--mode", "invalid"])
+
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "removed_flag, value",
+    [
+        ("--window-mode", "offscreen"),
+        ("--render-mode", "no-rendering"),
+    ],
+)
+def test_main_rejects_removed_scene_run_flags(removed_flag: str, value: str) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli_main.main(["scene", "run", removed_flag, value])
 
     assert exc.value.code == 2
 

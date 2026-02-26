@@ -153,18 +153,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _handle_scene_run(args: argparse.Namespace) -> int:
     launched_process: subprocess.Popen[bytes] | None = None
-    no_rendering_mode = args.render_mode == "no-rendering"
-    offscreen_mode = args.window_mode == "offscreen"
+    no_rendering_mode = args.no_rendering
+    offscreen_mode = args.offscreen
     synchronous_mode = args.mode == "sync"
 
     if offscreen_mode and not args.launch_carla:
         print(
-            "[WARN] window-mode=offscreen only affects launched CARLA server "
+            "[WARN] --offscreen only affects launched CARLA server "
             "(enable --launch-carla)."
         )
     if no_rendering_mode and not args.launch_carla:
         print(
-            "[WARN] render-mode=no-rendering applies world settings, but window "
+            "[WARN] --no-rendering applies world settings, but window "
             "visibility depends on existing CARLA server startup flags."
         )
 
@@ -332,7 +332,7 @@ def _with_operator_container(
 
 def _build_session_config(args: argparse.Namespace) -> CarlaSessionConfig:
     synchronous_mode = args.mode == "sync"
-    no_rendering_mode = args.render_mode == "no-rendering"
+    no_rendering_mode = args.no_rendering
     return CarlaSessionConfig(
         host=args.host,
         port=args.port,
@@ -463,10 +463,9 @@ def _add_world_session_arguments(
         help="Fixed delta used for sync mode world settings.",
     )
     parser.add_argument(
-        "--render-mode",
-        choices=("normal", "no-rendering"),
-        default="normal",
-        help="CARLA world rendering setting.",
+        "--no-rendering",
+        action="store_true",
+        help="Disable world rendering in CARLA world settings.",
     )
 
 
@@ -496,10 +495,9 @@ def _add_scene_runtime_arguments(
         help="Legacy follow target by actor id.",
     )
     parser.add_argument(
-        "--window-mode",
-        choices=("onscreen", "offscreen"),
-        default=None,
-        help="Window mode for launched CARLA server.",
+        "--offscreen",
+        action="store_true",
+        help="Enable offscreen window mode for launched CARLA server.",
     )
     parser.add_argument(
         "--launch-carla",
@@ -525,7 +523,7 @@ def _add_scene_runtime_arguments(
     parser.add_argument(
         "--quality-level",
         choices=("Low", "Epic"),
-        default=None,
+        default="Epic",
         help="Rendering quality for launched CARLA server.",
     )
     parser.add_argument(
