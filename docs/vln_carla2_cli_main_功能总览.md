@@ -281,7 +281,7 @@ python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sy
 ### 12.1 scene editor（Free 模式）
 
 ```python
-from vln_carla2.app.scene_editor_main import SceneEditorSettings, run
+from vln_carla2.app.wiring.scene import SceneEditorSettings, run_scene_editor
 
 settings = SceneEditorSettings(
     host="127.0.0.1",
@@ -291,13 +291,13 @@ settings = SceneEditorSettings(
     start_in_follow_mode=False,
     allow_mode_toggle=True,
 )
-run(settings)
+run_scene_editor(settings)
 ```
 
 ### 12.2 scene editor（锁定 Follow，等价 spectator follow 风格）
 
 ```python
-from vln_carla2.app.scene_editor_main import SceneEditorSettings, run
+from vln_carla2.app.wiring.scene import SceneEditorSettings, run_scene_editor
 
 settings = SceneEditorSettings(
     host="127.0.0.1",
@@ -308,5 +308,5 @@ settings = SceneEditorSettings(
     start_in_follow_mode=True,
     allow_mode_toggle=False,
 )
-run(settings)
+run_scene_editor(settings)
 ```

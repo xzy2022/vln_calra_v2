@@ -6,6 +6,7 @@ import pytest
 
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.usecases.control.run_control_loop import LoopResult
+from vln_carla2.usecases.operator.models import VehicleRefInput
 from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.operator.run_operator_workflow import (
@@ -110,7 +111,7 @@ def test_run_operator_workflow_serial_uses_resolved_vehicle_without_spawn() -> N
 
     result = usecase.run(
         OperatorWorkflowRequest(
-            vehicle_ref=VehicleRef(scheme="role", value="ego"),
+            vehicle_ref=VehicleRefInput(scheme="role", value="ego"),
             spawn_request=_spawn_request(),
             strategy="serial",
             steps=2,
@@ -152,7 +153,7 @@ def test_run_operator_workflow_parallel_spawns_when_ref_missing() -> None:
 
     result = usecase.run(
         OperatorWorkflowRequest(
-            vehicle_ref=VehicleRef(scheme="first", value=None),
+            vehicle_ref=VehicleRefInput(scheme="first", value=None),
             spawn_request=_spawn_request(),
             strategy="parallel",
             steps=3,
@@ -196,7 +197,7 @@ def test_run_operator_workflow_raises_when_ref_missing_and_spawn_disabled() -> N
     with pytest.raises(RuntimeError, match="spawn_if_missing=False"):
         usecase.run(
             OperatorWorkflowRequest(
-                vehicle_ref=VehicleRef(scheme="role", value="missing"),
+                vehicle_ref=VehicleRefInput(scheme="role", value="missing"),
                 spawn_request=_spawn_request(),
                 spawn_if_missing=False,
             )

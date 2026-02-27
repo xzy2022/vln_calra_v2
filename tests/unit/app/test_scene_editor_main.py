@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
-from vln_carla2.app import scene_editor_main
+from vln_carla2.app.wiring import scene
 
 
 @dataclass
@@ -24,7 +24,7 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
     runtime = _FakeRuntime(result=11, max_ticks_calls=[])
 
     @contextmanager
-    def fake_managed_session(config: scene_editor_main.CarlaSessionConfig):
+    def fake_managed_session(config: scene.CarlaSessionConfig):
         captured["session_config"] = config
         yield SimpleNamespace(world=fake_world)
 
@@ -32,15 +32,15 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
         captured["container_kwargs"] = kwargs
         return SimpleNamespace(runtime=runtime)
 
-    monkeypatch.setattr(scene_editor_main, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
-        scene_editor_main,
+        scene,
         "build_scene_editor_container",
         fake_build_scene_editor_container,
     )
 
-    result = scene_editor_main.run(
-        scene_editor_main.SceneEditorSettings(
+    result = scene.run_scene_editor(
+        scene.SceneEditorSettings(
             synchronous_mode=True,
             fixed_delta_seconds=0.05,
             no_rendering_mode=True,
@@ -80,7 +80,7 @@ def test_run_passes_async_settings_to_session_and_container(monkeypatch) -> None
     runtime = _FakeRuntime(result=5, max_ticks_calls=[])
 
     @contextmanager
-    def fake_managed_session(config: scene_editor_main.CarlaSessionConfig):
+    def fake_managed_session(config: scene.CarlaSessionConfig):
         captured["session_config"] = config
         yield SimpleNamespace(world=object())
 
@@ -88,15 +88,15 @@ def test_run_passes_async_settings_to_session_and_container(monkeypatch) -> None
         captured["container_kwargs"] = kwargs
         return SimpleNamespace(runtime=runtime)
 
-    monkeypatch.setattr(scene_editor_main, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
-        scene_editor_main,
+        scene,
         "build_scene_editor_container",
         fake_build_scene_editor_container,
     )
 
-    result = scene_editor_main.run(
-        scene_editor_main.SceneEditorSettings(
+    result = scene.run_scene_editor(
+        scene.SceneEditorSettings(
             map_name="Town10HD_Opt",
             synchronous_mode=False,
             fixed_delta_seconds=0.05,
@@ -129,22 +129,22 @@ def test_run_passes_follow_vehicle_id_to_container(monkeypatch) -> None:
     runtime = _FakeRuntime(result=1, max_ticks_calls=[])
 
     @contextmanager
-    def fake_managed_session(_config: scene_editor_main.CarlaSessionConfig):
+    def fake_managed_session(_config: scene.CarlaSessionConfig):
         yield SimpleNamespace(world=object())
 
     def fake_build_scene_editor_container(**kwargs: Any):
         captured["container_kwargs"] = kwargs
         return SimpleNamespace(runtime=runtime)
 
-    monkeypatch.setattr(scene_editor_main, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
-        scene_editor_main,
+        scene,
         "build_scene_editor_container",
         fake_build_scene_editor_container,
     )
 
-    result = scene_editor_main.run(
-        scene_editor_main.SceneEditorSettings(
+    result = scene.run_scene_editor(
+        scene.SceneEditorSettings(
             synchronous_mode=True,
             tick_sleep_seconds=0.01,
             follow_vehicle_id=123,
@@ -172,7 +172,7 @@ def test_run_imports_scene_before_loop_when_scene_import_path_is_set(monkeypatch
     runtime = _FakeRuntime(result=2, max_ticks_calls=[])
 
     @contextmanager
-    def fake_managed_session(_config: scene_editor_main.CarlaSessionConfig):
+    def fake_managed_session(_config: scene.CarlaSessionConfig):
         yield SimpleNamespace(world=object())
 
     class _FakeImporter:
@@ -189,15 +189,15 @@ def test_run_imports_scene_before_loop_when_scene_import_path_is_set(monkeypatch
         captured["container_kwargs"] = kwargs
         return SimpleNamespace(runtime=runtime, import_scene_template=importer)
 
-    monkeypatch.setattr(scene_editor_main, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
-        scene_editor_main,
+        scene,
         "build_scene_editor_container",
         fake_build_scene_editor_container,
     )
 
-    result = scene_editor_main.run(
-        scene_editor_main.SceneEditorSettings(
+    result = scene.run_scene_editor(
+        scene.SceneEditorSettings(
             scene_import_path="fixtures/scene.json",
             scene_export_path="exports/out.json",
         ),

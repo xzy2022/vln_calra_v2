@@ -1,14 +1,11 @@
-"""Bootstrap for experiment workflow (exp run)."""
+"""Experiment workflow composition wiring."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
 
-from vln_carla2.app.carla_session import CarlaSessionConfig, managed_carla_session
-from vln_carla2.app.control_container import build_control_container
 from vln_carla2.domain.model.vehicle_id import VehicleId
-from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
     CarlaSceneObjectSpawnerAdapter,
 )
@@ -22,6 +19,7 @@ from vln_carla2.usecases.exp.run_exp_workflow import (
     RunExpWorkflow,
 )
 from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.operator.models import VehicleRefInput
 from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.safety.andrew_monotone_chain_forbidden_zone_builder import (
@@ -30,11 +28,14 @@ from vln_carla2.usecases.safety.andrew_monotone_chain_forbidden_zone_builder imp
 from vln_carla2.usecases.safety.build_forbidden_zone_from_scene import BuildForbiddenZoneFromScene
 from vln_carla2.usecases.scene_editor.import_scene_template import ImportSceneTemplate
 
+from .control import build_control_container
+from .session import CarlaSessionConfig, managed_carla_session
+
 _CONTROL_TARGET_RESOLVE_RETRIES = 8
 
 
-def _default_control_target() -> VehicleRef:
-    return VehicleRef(scheme="role", value="ego")
+def _default_control_target() -> VehicleRefInput:
+    return VehicleRefInput(scheme="role", value="ego")
 
 
 @dataclass(slots=True)
@@ -49,7 +50,7 @@ class ExpRunSettings:
     fixed_delta_seconds: float = 0.05
     no_rendering_mode: bool = False
     offscreen_mode: bool = False
-    control_target: VehicleRef = field(default_factory=_default_control_target)
+    control_target: VehicleRefInput = field(default_factory=_default_control_target)
     forward_distance_m: float = 20.0
     target_speed_mps: float = 5.0
     follow_z: float = 20.0
@@ -78,14 +79,14 @@ class ExpRunResult:
 
     scene_json_path: str
     scene_map_name: str
-    control_target: VehicleRef
+    control_target: VehicleRefInput
     selected_vehicle: VehicleDescriptor
     imported_objects: int
     forward_distance_m: float
     exp_workflow_result: ExpWorkflowResult
 
 
-def run(settings: ExpRunSettings) -> ExpRunResult:
+def run_exp_workflow(settings: ExpRunSettings) -> ExpRunResult:
     """Run experiment workflow in one managed CARLA session."""
     scene_store = SceneTemplateJsonStore()
     scene_template = scene_store.load(settings.scene_json_path)
@@ -162,7 +163,7 @@ def _build_control_loop_for_actor(world: Any, actor_id: int):
 def _resolve_control_target_with_retry(
     *,
     world: Any,
-    control_target: VehicleRef,
+    control_target: VehicleRefInput,
     synchronous_mode: bool,
     retries: int,
 ) -> VehicleDescriptor:
@@ -206,3 +207,4 @@ def _describe_current_vehicles(world: Any) -> str:
         f"(actor_id={vehicle.actor_id} type_id={vehicle.type_id} role_name={vehicle.role_name})"
         for vehicle in vehicles
     )
+

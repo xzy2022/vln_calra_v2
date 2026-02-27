@@ -6,14 +6,14 @@ from typing import Any
 
 import pytest
 
-from vln_carla2.app import operator_bootstrap
-from vln_carla2.domain.model.vehicle_ref import VehicleRef
+from vln_carla2.app.wiring import operator
 from vln_carla2.usecases.control.run_control_loop import LoopResult
+from vln_carla2.usecases.operator.models import VehicleRefInput
 from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 
 
 def _result(actor_id: int = 7):
-    return operator_bootstrap.OperatorWorkflowResult(
+    return operator.OperatorWorkflowResult(
         selected_vehicle=VehicleDescriptor(
             actor_id=actor_id,
             type_id="vehicle.tesla.model3",
@@ -43,7 +43,7 @@ def test_run_wires_session_containers_and_workflow(monkeypatch: pytest.MonkeyPat
     expected = _result(actor_id=42)
 
     @contextmanager
-    def fake_managed_session(config: operator_bootstrap.CarlaSessionConfig):
+    def fake_managed_session(config: operator.CarlaSessionConfig):
         captured["session_config"] = config
         yield SimpleNamespace(world=fake_world)
 
@@ -66,31 +66,31 @@ def test_run_wires_session_containers_and_workflow(monkeypatch: pytest.MonkeyPat
             self.operator_runtime_factory = kwargs["operator_runtime_factory"]
             self.control_loop_factory = kwargs["control_loop_factory"]
 
-        def run(self, request: operator_bootstrap.OperatorWorkflowRequest):
+        def run(self, request: operator.OperatorWorkflowRequest):
             captured["workflow_request"] = request
             captured["runtime"] = self.operator_runtime_factory(42)
             captured["control_loop"] = self.control_loop_factory(42)
             return expected
 
-    monkeypatch.setattr(operator_bootstrap, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(operator, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
-        operator_bootstrap,
+        operator,
         "build_operator_container",
         fake_build_operator_container,
     )
     monkeypatch.setattr(
-        operator_bootstrap,
+        operator,
         "_build_control_loop_for_actor",
         fake_build_control_loop_for_actor,
     )
-    monkeypatch.setattr(operator_bootstrap, "RunOperatorWorkflow", FakeWorkflow)
+    monkeypatch.setattr(operator, "RunOperatorWorkflow", FakeWorkflow)
 
-    settings = operator_bootstrap.OperatorWorkflowSettings(
+    settings = operator.OperatorWorkflowSettings(
         host="127.0.0.1",
         port=2000,
         synchronous_mode=True,
         tick_sleep_seconds=0.01,
-        vehicle_ref=VehicleRef(scheme="role", value="ego"),
+        vehicle_ref=VehicleRefInput(scheme="role", value="ego"),
         strategy="parallel",
         steps=3,
         target_speed_mps=4.0,
@@ -98,7 +98,7 @@ def test_run_wires_session_containers_and_workflow(monkeypatch: pytest.MonkeyPat
         spectator_initial_z=35.0,
     )
 
-    got = operator_bootstrap.run(settings)
+    got = operator.run_operator_workflow(settings)
 
     session_config = captured["session_config"]
     assert got == expected
@@ -114,7 +114,7 @@ def test_run_wires_session_containers_and_workflow(monkeypatch: pytest.MonkeyPat
     assert captured["runtime"] == "runtime-42"
     assert captured["control_loop"] == "control-loop-42"
     assert captured["control_calls"] == [(fake_world, 42)]
-    assert captured["workflow_request"].vehicle_ref == VehicleRef(scheme="role", value="ego")
+    assert captured["workflow_request"].vehicle_ref == VehicleRefInput(scheme="role", value="ego")
     assert captured["workflow_request"].strategy == "parallel"
     assert captured["workflow_request"].steps == 3
     assert captured["workflow_request"].target_speed_mps == 4.0
@@ -124,7 +124,7 @@ def test_build_control_loop_for_actor_raises_when_actor_missing() -> None:
     world = SimpleNamespace(get_actor=lambda _actor_id: None)
 
     with pytest.raises(RuntimeError, match="Vehicle actor not found"):
-        operator_bootstrap._build_control_loop_for_actor(world, 99)
+        operator._build_control_loop_for_actor(world, 99)
 
 
 def test_build_control_loop_for_actor_returns_run_control_loop(
@@ -138,11 +138,11 @@ def test_build_control_loop_for_actor_returns_run_control_loop(
         return SimpleNamespace(run_control_loop=sentinel_loop)
 
     monkeypatch.setattr(
-        operator_bootstrap,
+        operator,
         "build_control_container",
         fake_build_control_container,
     )
 
-    got = operator_bootstrap._build_control_loop_for_actor(world, 5)
+    got = operator._build_control_loop_for_actor(world, 5)
 
     assert got is sentinel_loop

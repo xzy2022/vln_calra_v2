@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
+from vln_carla2.usecases.operator.models import VehicleRefInput
 from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.operator.ports.vehicle_resolver import VehicleResolverPort
 
@@ -13,5 +14,5 @@ class ResolveVehicleRef:
 
     resolver: VehicleResolverPort
 
-    def run(self, ref: VehicleRef) -> VehicleDescriptor | None:
-        return self.resolver.resolve(ref)
+    def run(self, ref: VehicleRefInput) -> VehicleDescriptor | None:
+        return self.resolver.resolve(VehicleRef(scheme=ref.scheme, value=ref.value))

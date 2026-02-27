@@ -7,7 +7,7 @@ from typing import Callable, Literal
 
 from vln_carla2.domain.model.simple_command import TargetSpeedCommand
 from vln_carla2.domain.model.vehicle_id import VehicleId
-from vln_carla2.domain.model.vehicle_ref import VehicleRef
+from vln_carla2.usecases.operator.models import VehicleRefInput
 from vln_carla2.usecases.control.run_control_loop import LoopResult, RunControlLoop
 from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
@@ -22,7 +22,7 @@ VehicleAcquireSource = Literal["resolved", "spawned"]
 class OperatorWorkflowRequest:
     """Input for running one operator workflow."""
 
-    vehicle_ref: VehicleRef
+    vehicle_ref: VehicleRefInput
     spawn_request: SpawnVehicleRequest
     spawn_if_missing: bool = True
     strategy: OperatorWorkflowStrategy = "parallel"

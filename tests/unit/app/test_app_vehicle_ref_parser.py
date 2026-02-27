@@ -1,6 +1,6 @@
 import pytest
 
-from vln_carla2.app.vehicle_ref_parser import (
+from vln_carla2.adapters.cli.vehicle_ref_parser import (
     VehicleRefParseError,
     parse_vehicle_ref,
 )
