@@ -14,3 +14,14 @@
 [[integration]]
 [[fixtures]]
 [[conftest.py]]
+
+## 架构门禁（本轮新增）
+
+- 架构依赖由 `tests/unit/architecture/test_layer_dependencies.py` 做 AST 静态检查并作为测试门禁。
+- 规则如下：
+  - `domain -> domain`
+  - `usecases -> domain/usecases`
+  - `adapters -> adapters/usecases`
+  - `infrastructure -> infrastructure/domain/usecases/**/ports`
+  - `app -> unrestricted`
+- 说明：本轮**明确忽略** `usecases` 内部相互调用限制，不把它作为违规项。

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from vln_carla2.usecases.operator.models import VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 
 
 def iter_vehicle_actors(world: Any) -> Iterable[Any]:

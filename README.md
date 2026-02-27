@@ -12,13 +12,13 @@
 
 新的cli执行命令
 ```
-python -m vln_carla2.adapters.cli.main scene run --launch-carla --no-rendering
+python -m vln_carla2.app.cli_main scene run --launch-carla --no-rendering
 ```
 
 scene editor 场景导入/导出（按键 `1/2` 生成对象，`Ctrl+S` 导出）：
 
 ```bash
-python -m vln_carla2.adapters.cli.main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
+python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
 ```
 
 ### 1.2 参考文档说明
@@ -40,13 +40,13 @@ python -m vln_carla2.adapters.cli.main scene run --host 127.0.0.1 --port 2000 --
 运行命令：
 
 ```bash
-python -m vln_carla2.adapters.cli.main
+python -m vln_carla2.app.cli_main
 ```
 
 常用参数示例：
 
 ```bash
-python -m vln_carla2.adapters.cli.main --steps 100 --target-speed-mps 5.0 --map-name Town10HD_Opt
+python -m vln_carla2.app.cli_main --steps 100 --target-speed-mps 5.0 --map-name Town10HD_Opt
 ```
 
 日志会输出：`step/frame/speed_mps/throttle/brake`。

@@ -22,7 +22,7 @@ from vln_carla2.usecases.exp.run_exp_workflow import (
     RunExpWorkflow,
 )
 from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.operator.models import VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.safety.andrew_monotone_chain_forbidden_zone_builder import (
     AndrewMonotoneChainForbiddenZoneBuilder,

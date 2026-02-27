@@ -7,7 +7,7 @@ from typing import Protocol
 
 from vln_carla2.domain.model.scene_template import SceneObject, SceneObjectKind, ScenePose
 from vln_carla2.domain.services.spawn_rules import spawn_z_from_ground
-from vln_carla2.usecases.operator.models import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
 from vln_carla2.usecases.scene_editor.ports.scene_object_recorder import (
     SceneObjectRecorderPort,

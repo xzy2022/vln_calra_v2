@@ -9,7 +9,7 @@ from vln_carla2.domain.model.simple_command import TargetSpeedCommand
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.usecases.control.run_control_loop import LoopResult, RunControlLoop
-from vln_carla2.usecases.operator.models import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.operator.run_operator_loop import RunOperatorLoop
 from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle

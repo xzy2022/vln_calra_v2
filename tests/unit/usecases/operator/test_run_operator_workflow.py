@@ -6,7 +6,7 @@ import pytest
 
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.usecases.control.run_control_loop import LoopResult
-from vln_carla2.usecases.operator.models import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.operator.run_operator_workflow import (
     OperatorWorkflowRequest,

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from vln_carla2.usecases.operator.models import VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.operator.ports.vehicle_catalog import VehicleCatalogPort
 
 

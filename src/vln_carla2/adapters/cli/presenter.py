@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Iterable
 
-from vln_carla2.usecases.operator.models import VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 
 
 def print_vehicle_list(vehicles: Iterable[VehicleDescriptor], *, output_format: str) -> None:

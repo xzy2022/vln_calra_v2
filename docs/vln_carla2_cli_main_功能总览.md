@@ -1,13 +1,13 @@
-﻿# vln_carla2.adapters.cli.main 功能总览
+﻿# vln_carla2.app.cli_main 功能总览
 
-本文汇总 `python -m vln_carla2.adapters.cli.main` 的可用功能，按命令层级组织。
+本文汇总 `python -m vln_carla2.app.cli_main` 的可用功能，按命令层级组织。
 
 ## 1. 命令入口与层级
 
 ### 1.1 标准入口
 
 ```bash
-python -m vln_carla2.adapters.cli.main <resource> <action> [options]
+python -m vln_carla2.app.cli_main <resource> <action> [options]
 ```
 
 命令树：
@@ -229,7 +229,7 @@ conda activate vln_carla_py312
 ### 11.2 启动 scene run（可交互移动）
 
 ```bash
-python -m vln_carla2.adapters.cli.main scene run --launch-carla --host 127.0.0.1 --port 2000 --mode sync
+python -m vln_carla2.app.cli_main scene run --launch-carla --host 127.0.0.1 --port 2000 --mode sync
 ```
 
 运行后可直接使用按键：
@@ -243,35 +243,35 @@ python -m vln_carla2.adapters.cli.main scene run --launch-carla --host 127.0.0.1
 
 导入：
 ```bash
-python -m vln_carla2.adapters.cli.main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-import artifacts/scene_in.json  --launch-carla 
+python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-import artifacts/scene_in.json  --launch-carla 
 ```
 导出：
 ```bash
-python -m vln_carla2.adapters.cli.main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
+python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
 ```
 
 ### 11.3 单命令执行大闭环（按 role 发现或按需创建）
 
 ```bash
-python -m vln_carla2.adapters.cli.main operator run --launch-carla --host 127.0.0.1 --port 2000 --mode sync --follow role:ego --strategy parallel --steps 80 --target-speed-mps 5.0 --z 20
+python -m vln_carla2.app.cli_main operator run --launch-carla --host 127.0.0.1 --port 2000 --mode sync --follow role:ego --strategy parallel --steps 80 --target-speed-mps 5.0 --z 20
 ```
 
 ### 11.4 生成 ego 车辆并以 JSON 输出
 
 ```bash
-python -m vln_carla2.adapters.cli.main vehicle spawn --host 127.0.0.1 --port 2000 --mode sync --blueprint-filter vehicle.tesla.model3 --spawn-x 0.038 --spawn-y 15.320 --spawn-z 0.15 --spawn-yaw 180 --role-name ego --output json
+python -m vln_carla2.app.cli_main vehicle spawn --host 127.0.0.1 --port 2000 --mode sync --blueprint-filter vehicle.tesla.model3 --spawn-x 0.038 --spawn-y 15.320 --spawn-z 0.15 --spawn-yaw 180 --role-name ego --output json
 ```
 
 ### 11.5 持续跟随 ego（spectator 级别）
 
 ```bash
-python -m vln_carla2.adapters.cli.main spectator follow --host 127.0.0.1 --port 2000 --mode sync --follow role:ego --z 20
+python -m vln_carla2.app.cli_main spectator follow --host 127.0.0.1 --port 2000 --mode sync --follow role:ego --z 20
 ```
 
 ### 11.6 禁区是否进入实验
 
 ```bash
-python -m vln_carla2.adapters.cli.main exp run --host 127.0.0.1 --port 2000 --mode sync --scene-json artifacts/scene_out.json --launch-carla --keep-carla-server
+python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sync --scene-json artifacts/scene_out.json --launch-carla --keep-carla-server
 ```
 
 运行后可使用 `+/-` 调整跟随高度；`/` 不会切换模式（锁定 Follow）。

@@ -1,65 +1,15 @@
-"""CLI parser for VehicleRef input values."""
+"""Legacy parser module kept only for migration guidance."""
 
-from dataclasses import dataclass
-
-from vln_carla2.domain.model.vehicle_ref import VehicleRef
+from __future__ import annotations
 
 
-@dataclass(frozen=True, slots=True)
 class VehicleRefParseError(ValueError):
-    """Raised when CLI text cannot be parsed as a VehicleRef."""
-
-    raw: str
-    reason: str
-
-    def __str__(self) -> str:
-        return f"Invalid vehicle ref '{self.raw}': {self.reason}"
+    """Raised when legacy parser module is used after migration."""
 
 
-def parse_vehicle_ref(raw: str) -> VehicleRef:
-    """Parse raw CLI vehicle reference text into a VehicleRef value object."""
-    value = raw.strip()
-    if not value:
-        raise VehicleRefParseError(raw=raw, reason="empty input")
-
-    if value == "first":
-        return VehicleRef(scheme="first", value=None)
-
-    if ":" in value:
-        scheme, ref_value = value.split(":", 1)
-        scheme = scheme.strip()
-        ref_value = ref_value.strip()
-        if scheme == "actor":
-            _require_non_empty(raw, ref_value, "missing actor id")
-            return _build_actor_ref(raw=raw, value=ref_value)
-        if scheme == "role":
-            _require_non_empty(raw, ref_value, "missing role name")
-            return VehicleRef(scheme="role", value=ref_value)
-        if scheme == "first":
-            if ref_value:
-                raise VehicleRefParseError(raw=raw, reason="first does not accept a value")
-            return VehicleRef(scheme="first", value=None)
-        raise VehicleRefParseError(
-            raw=raw,
-            reason="unsupported scheme (expected actor|role|first)",
-        )
-
-    if value.isdigit():
-        return _build_actor_ref(raw=raw, value=value)
-
+def parse_vehicle_ref(raw: str):
+    """Legacy shim that always instructs callers to use the new module."""
+    del raw
     raise VehicleRefParseError(
-        raw=raw,
-        reason="expected 'actor:<id>', 'role:<name>', 'first', or positive integer id",
+        "vehicle ref parser moved to vln_carla2.app.vehicle_ref_parser"
     )
-
-
-def _build_actor_ref(*, raw: str, value: str) -> VehicleRef:
-    if not value.isdigit() or int(value) <= 0:
-        raise VehicleRefParseError(raw=raw, reason="actor id must be positive integer text")
-    return VehicleRef(scheme="actor", value=value)
-
-
-def _require_non_empty(raw: str, value: str, reason: str) -> None:
-    if value:
-        return
-    raise VehicleRefParseError(raw=raw, reason=reason)

@@ -9,7 +9,7 @@ import pytest
 from vln_carla2.app import operator_bootstrap
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.usecases.control.run_control_loop import LoopResult
-from vln_carla2.usecases.operator.models import VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 
 
 def _result(actor_id: int = 7):

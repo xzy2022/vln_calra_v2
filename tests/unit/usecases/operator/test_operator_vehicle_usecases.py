@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.usecases.operator.list_vehicles import ListVehicles
-from vln_carla2.usecases.operator.models import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
 

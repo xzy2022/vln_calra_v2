@@ -11,7 +11,7 @@ from vln_carla2.infrastructure.carla._vehicle_mapper import (
     role_name,
     to_vehicle_descriptor,
 )
-from vln_carla2.usecases.operator.models import VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.operator.ports.vehicle_resolver import VehicleResolverPort
 
 

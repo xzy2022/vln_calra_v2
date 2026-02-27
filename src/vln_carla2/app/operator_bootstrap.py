@@ -10,7 +10,7 @@ from vln_carla2.app.control_container import build_control_container
 from vln_carla2.app.operator_container import build_operator_container
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.usecases.control.run_control_loop import RunControlLoop
-from vln_carla2.usecases.operator.models import SpawnVehicleRequest
+from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest
 from vln_carla2.usecases.operator.run_operator_workflow import (
     OperatorWorkflowRequest,
     OperatorWorkflowResult,

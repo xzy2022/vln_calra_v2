@@ -2,7 +2,7 @@
 
 from .follow_vehicle_topdown import FollowVehicleTopDown
 from .list_vehicles import ListVehicles
-from .models import SpawnVehicleRequest, VehicleDescriptor
+from .ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
 from .resolve_vehicle_ref import ResolveVehicleRef
 from .run_operator_workflow import (
     OperatorWorkflowRequest,

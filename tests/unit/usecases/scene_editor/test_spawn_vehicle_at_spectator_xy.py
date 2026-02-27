@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import pytest
 
 from vln_carla2.domain.model.scene_template import SceneObject, SceneObjectKind
-from vln_carla2.usecases.operator.models import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
 from vln_carla2.usecases.scene_editor.spawn_vehicle_at_spectator_xy import (
     SpawnVehicleAtSpectatorXY,
 )

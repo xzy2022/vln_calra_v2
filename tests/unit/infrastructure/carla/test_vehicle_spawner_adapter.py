@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
-from vln_carla2.usecases.operator.models import SpawnVehicleRequest
+from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest
 
 
 @dataclass

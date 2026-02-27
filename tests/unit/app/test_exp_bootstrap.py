@@ -16,7 +16,7 @@ from vln_carla2.domain.model.scene_template import (
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.usecases.control.run_control_loop import LoopResult
 from vln_carla2.usecases.exp.run_exp_workflow import ExpWorkflowResult
-from vln_carla2.usecases.operator.models import VehicleDescriptor
+from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 
 
 def _scene_template() -> SceneTemplate:
