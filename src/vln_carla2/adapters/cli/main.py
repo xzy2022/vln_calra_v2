@@ -17,12 +17,14 @@ from vln_carla2.app.carla_session import (
     read_runtime_offscreen_mode,
     record_runtime_session_config,
 )
+from vln_carla2.app.exp_bootstrap import ExpRunSettings, run as run_exp_workflow
 from vln_carla2.app.operator_bootstrap import (
     OperatorWorkflowSettings,
     run as run_operator_workflow,
 )
 from vln_carla2.app.operator_container import OperatorContainer, build_operator_container
 from vln_carla2.app.scene_editor_main import SceneEditorSettings, run as run_scene_editor
+from vln_carla2.domain.model.scene_template import SceneTemplate
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.infrastructure.carla.server_launcher import (
     is_carla_server_reachable,
@@ -31,11 +33,13 @@ from vln_carla2.infrastructure.carla.server_launcher import (
     terminate_carla_server,
     wait_for_carla_server,
 )
+from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
 from vln_carla2.usecases.operator.models import SpawnVehicleRequest
 
 
 SCENE_COMMAND = "scene"
 OPERATOR_COMMAND = "operator"
+EXP_COMMAND = "exp"
 VEHICLE_COMMAND = "vehicle"
 SPECTATOR_COMMAND = "spectator"
 
@@ -140,6 +144,50 @@ def build_parser() -> argparse.ArgumentParser:
         help="Warmup ticks in serial strategy before control starts.",
     )
     operator_run.set_defaults(handler=_handle_operator_run)
+
+    exp_parser = root_subparsers.add_parser(
+        EXP_COMMAND,
+        help="Experiment workflow operations.",
+    )
+    exp_subparsers = exp_parser.add_subparsers(dest="exp_action", required=True)
+    exp_run = exp_subparsers.add_parser(
+        "run",
+        help="Run exp workflow (scene import -> follow -> forward demo -> zone check).",
+    )
+    _add_scene_runtime_arguments(
+        exp_run,
+        defaults=defaults,
+        default_carla_exe=default_carla_exe,
+    )
+    exp_run.add_argument(
+        "--scene-json",
+        required=True,
+        help="Path to scene template JSON used for import and map selection.",
+    )
+    exp_run.add_argument(
+        "--control-target",
+        default="role:ego",
+        help="Control target reference: actor:<id>, role:<name>, first, or positive integer id.",
+    )
+    exp_run.add_argument(
+        "--forward-distance-m",
+        type=float,
+        default=20.0,
+        help="Forward demo distance in meters.",
+    )
+    exp_run.add_argument(
+        "--target-speed-mps",
+        type=float,
+        default=5.0,
+        help="Control target speed in m/s.",
+    )
+    exp_run.add_argument(
+        "--max-steps",
+        type=int,
+        default=800,
+        help="Max control steps used as fail-safe stop.",
+    )
+    exp_run.set_defaults(handler=_handle_exp_run)
 
     vehicle_parser = root_subparsers.add_parser(VEHICLE_COMMAND, help="Vehicle operations.")
     vehicle_subparsers = vehicle_parser.add_subparsers(dest="vehicle_action", required=True)
@@ -331,6 +379,83 @@ def _handle_operator_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_exp_run(args: argparse.Namespace) -> int:
+    launched_process: subprocess.Popen[bytes] | None = None
+    try:
+        scene_template = _load_scene_template(args.scene_json)
+        control_target = parse_vehicle_ref(args.control_target)
+    except VehicleRefParseError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"[ERROR] exp workflow argument validation failed: {exc}", file=sys.stderr)
+        return 1
+
+    session_config = _build_session_config(args, map_name_override=scene_template.map_name)
+    settings = _build_exp_workflow_settings(
+        args,
+        control_target=control_target,
+    )
+
+    if settings.offscreen_mode and not args.launch_carla:
+        print(
+            "[WARN] --offscreen only affects launched CARLA server "
+            "(enable --launch-carla)."
+        )
+    if settings.no_rendering_mode and not args.launch_carla:
+        print(
+            "[WARN] --no-rendering applies world settings, but window "
+            "visibility depends on existing CARLA server startup flags."
+        )
+
+    if args.launch_carla:
+        launch_result = _maybe_launch_carla(
+            args,
+            session_config=session_config,
+        )
+        if isinstance(launch_result, int):
+            if launch_result != 0:
+                return launch_result
+        else:
+            launched_process = launch_result
+
+    try:
+        result = run_exp_workflow(settings)
+    except KeyboardInterrupt:
+        print("[INFO] interrupted by Ctrl+C")
+        return 0
+    except Exception as exc:
+        print(f"[ERROR] exp workflow failed: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if launched_process is not None and not args.keep_carla_server:
+            try:
+                terminate_carla_server(launched_process)
+                clear_runtime_session_config(args.host, args.port)
+            except Exception as exc:
+                print(
+                    f"[WARN] failed to terminate launched CARLA process: {exc}",
+                    file=sys.stderr,
+                )
+
+    print(
+        "[INFO] exp workflow finished "
+        f"control_target={_format_vehicle_ref(result.control_target)} "
+        f"actor_id={result.selected_vehicle.actor_id} "
+        f"map_name={result.scene_map_name} "
+        f"imported_objects={result.imported_objects} "
+        f"forward_distance_m={result.forward_distance_m:.3f} "
+        f"traveled_distance_m={result.exp_workflow_result.traveled_distance_m:.3f} "
+        f"entered_forbidden_zone={result.exp_workflow_result.entered_forbidden_zone} "
+        f"control_steps={result.exp_workflow_result.control_loop_result.executed_steps} "
+        f"host={args.host} port={args.port}"
+    )
+    entered = result.exp_workflow_result.entered_forbidden_zone
+    status = "ENTERED" if entered else "CLEAR"
+    print(f"[RESULT] forbidden_zone={status} entered_forbidden_zone={entered}")
+    return 0
+
+
 
 def _handle_vehicle_list(args: argparse.Namespace) -> int:
     try:
@@ -444,15 +569,20 @@ def _with_operator_container(
 
 
 
-def _build_session_config(args: argparse.Namespace) -> CarlaSessionConfig:
+def _build_session_config(
+    args: argparse.Namespace,
+    *,
+    map_name_override: str | None = None,
+) -> CarlaSessionConfig:
     synchronous_mode = args.mode == "sync"
     no_rendering_mode = args.no_rendering
     offscreen_mode = bool(getattr(args, "offscreen", False))
+    map_name = args.map_name if map_name_override is None else map_name_override
     return CarlaSessionConfig(
         host=args.host,
         port=args.port,
         timeout_seconds=args.timeout_seconds,
-        map_name=args.map_name,
+        map_name=map_name,
         synchronous_mode=synchronous_mode,
         fixed_delta_seconds=args.fixed_delta_seconds,
         no_rendering_mode=no_rendering_mode,
@@ -494,6 +624,28 @@ def _build_operator_workflow_settings(
     )
 
 
+def _build_exp_workflow_settings(
+    args: argparse.Namespace,
+    *,
+    control_target: VehicleRef,
+) -> ExpRunSettings:
+    return ExpRunSettings(
+        scene_json_path=args.scene_json,
+        host=args.host,
+        port=args.port,
+        timeout_seconds=args.timeout_seconds,
+        synchronous_mode=args.mode == "sync",
+        fixed_delta_seconds=args.fixed_delta_seconds,
+        no_rendering_mode=args.no_rendering,
+        offscreen_mode=args.offscreen,
+        control_target=control_target,
+        forward_distance_m=args.forward_distance_m,
+        target_speed_mps=args.target_speed_mps,
+        follow_z=20.0,
+        max_steps=args.max_steps,
+    )
+
+
 def _resolve_follow_vehicle_id(args: argparse.Namespace) -> int | None:
     follow_ref_raw = getattr(args, "follow", None)
     if follow_ref_raw is None:
@@ -515,6 +667,16 @@ def _resolve_follow_vehicle_id(args: argparse.Namespace) -> int | None:
     if descriptor is None:
         raise CliUsageError(f"no vehicle matches follow ref '{follow_ref_raw}'")
     return descriptor.actor_id
+
+
+def _load_scene_template(path: str) -> SceneTemplate:
+    return SceneTemplateJsonStore().load(path)
+
+
+def _format_vehicle_ref(ref: VehicleRef) -> str:
+    if ref.scheme == "first":
+        return "first"
+    return f"{ref.scheme}:{ref.value}"
 
 
 

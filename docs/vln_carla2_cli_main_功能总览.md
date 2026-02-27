@@ -268,6 +268,12 @@ python -m vln_carla2.adapters.cli.main vehicle spawn --host 127.0.0.1 --port 200
 python -m vln_carla2.adapters.cli.main spectator follow --host 127.0.0.1 --port 2000 --mode sync --follow role:ego --z 20
 ```
 
+### 11.6 禁区是否进入实验
+
+```bash
+python -m vln_carla2.adapters.cli.main exp run --host 127.0.0.1 --port 2000 --mode sync --scene-json artifacts/scene_out.json --launch-carla --keep-carla-server
+```
+
 运行后可使用 `+/-` 调整跟随高度；`/` 不会切换模式（锁定 Follow）。
 
 ## 12. Python 调用示例（非 CLI）

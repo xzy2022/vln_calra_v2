@@ -28,6 +28,7 @@ class CarlaSessionConfig:
     fixed_delta_seconds: float
     no_rendering_mode: bool = False
     offscreen_mode: bool = False
+    force_reload_map: bool = False
 
 
 @dataclass(slots=True)
@@ -58,7 +59,7 @@ def open_carla_session(config: CarlaSessionConfig) -> CarlaSession:
     world = client.get_world()
 
     current_map = world.get_map().name.split("/")[-1]
-    if current_map != config.map_name:
+    if config.force_reload_map or current_map != config.map_name:
         world = client.load_world(config.map_name)
 
     original_settings = world.get_settings()

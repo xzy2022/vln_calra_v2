@@ -46,6 +46,8 @@ class RunControlLoop:
         target: TargetSpeedCommand,
         max_steps: int,
         before_step: Callable[[int], None] | None = None,
+        on_state: Callable[[VehicleState], None] | None = None,
+        stop_before_apply: Callable[[int, VehicleState], bool] | None = None,
     ) -> LoopResult:
         if max_steps <= 0:
             raise ValueError("max_steps must be > 0")
@@ -53,11 +55,21 @@ class RunControlLoop:
         speed_samples: list[float] = []
         last_speed_mps = 0.0
         last_frame = -1
+        executed_steps = 0
 
         for step in range(1, max_steps + 1):
             if before_step is not None:
                 before_step(step)
             state = self.state_reader.read(vehicle_id)
+            if on_state is not None:
+                on_state(state)
+            if stop_before_apply is not None and stop_before_apply(step, state):
+                self.logger.info(
+                    "step="
+                    f"{step} stop_before_apply=true speed_mps={state.speed_mps:.3f} "
+                    f"frame={state.frame}"
+                )
+                break
             command = self.controller.compute(state, target)
             self.motion_actuator.apply(vehicle_id, command)
             frame = self.clock.tick()
@@ -71,10 +83,11 @@ class RunControlLoop:
             speed_samples.append(state.speed_mps)
             last_speed_mps = state.speed_mps
             last_frame = frame
+            executed_steps += 1
 
-        avg_speed_mps = sum(speed_samples) / len(speed_samples)
+        avg_speed_mps = sum(speed_samples) / len(speed_samples) if speed_samples else 0.0
         return LoopResult(
-            executed_steps=max_steps,
+            executed_steps=executed_steps,
             last_speed_mps=last_speed_mps,
             avg_speed_mps=avg_speed_mps,
             last_frame=last_frame,

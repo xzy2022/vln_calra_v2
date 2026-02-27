@@ -550,3 +550,104 @@ def test_operator_run_rejects_invalid_vehicle_ref(
 
     assert exit_code == 2
     assert "Invalid vehicle ref" in stderr
+
+
+def test_build_parser_supports_exp_run_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli_main, "_load_env_from_dotenv", lambda: None)
+
+    parser = cli_main.build_parser()
+    args = parser.parse_args(["exp", "run", "--scene-json", "artifacts/scene_out.json"])
+
+    assert args.scene_json == "artifacts/scene_out.json"
+    assert args.control_target == "role:ego"
+    assert args.forward_distance_m == 20.0
+    assert args.target_speed_mps == 5.0
+    assert args.max_steps == 800
+
+
+def test_exp_run_uses_scene_map_and_calls_exp_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    captured: dict[str, Any] = {}
+    original_build_session_config = cli_main._build_session_config
+
+    def fake_load_scene_template(path: str) -> Any:
+        captured["scene_json"] = path
+        return argparse.Namespace(map_name="Town05")
+
+    def fake_build_session_config(args: argparse.Namespace, *, map_name_override: str | None = None):
+        captured["map_name_override"] = map_name_override
+        return original_build_session_config(args, map_name_override=map_name_override)
+
+    def fake_run_exp_workflow(settings: Any) -> Any:
+        captured["settings"] = settings
+        return argparse.Namespace(
+            control_target=settings.control_target,
+            selected_vehicle=argparse.Namespace(actor_id=77),
+            scene_map_name="Town05",
+            imported_objects=4,
+            forward_distance_m=settings.forward_distance_m,
+            exp_workflow_result=argparse.Namespace(
+                traveled_distance_m=20.5,
+                entered_forbidden_zone=True,
+                control_loop_result=argparse.Namespace(executed_steps=3),
+            ),
+        )
+
+    monkeypatch.setattr(cli_main, "_load_scene_template", fake_load_scene_template)
+    monkeypatch.setattr(cli_main, "_build_session_config", fake_build_session_config)
+    monkeypatch.setattr(cli_main, "run_exp_workflow", fake_run_exp_workflow)
+
+    exit_code = cli_main.main(
+        [
+            "exp",
+            "run",
+            "--scene-json",
+            "artifacts/scene_out.json",
+            "--control-target",
+            "actor:77",
+            "--map-name",
+            "Town10HD_Opt",
+            "--forward-distance-m",
+            "20",
+            "--target-speed-mps",
+            "4.0",
+            "--max-steps",
+            "600",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert captured["scene_json"] == "artifacts/scene_out.json"
+    assert captured["map_name_override"] == "Town05"
+    assert captured["settings"].scene_json_path == "artifacts/scene_out.json"
+    assert captured["settings"].control_target.scheme == "actor"
+    assert captured["settings"].control_target.value == "77"
+    assert captured["settings"].forward_distance_m == 20.0
+    assert captured["settings"].target_speed_mps == 4.0
+    assert captured["settings"].max_steps == 600
+    assert "exp workflow finished" in stdout
+    assert "entered_forbidden_zone=True" in stdout
+    assert "[RESULT] forbidden_zone=ENTERED entered_forbidden_zone=True" in stdout
+
+
+def test_exp_run_rejects_invalid_control_target(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "_load_scene_template",
+        lambda _path: argparse.Namespace(map_name="Town10HD_Opt"),
+    )
+    monkeypatch.setattr(cli_main, "run_exp_workflow", lambda _settings: None)
+
+    exit_code = cli_main.main(
+        ["exp", "run", "--scene-json", "artifacts/scene_out.json", "--control-target", "bad-ref"]
+    )
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "Invalid vehicle ref" in stderr

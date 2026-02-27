@@ -142,3 +142,39 @@ def test_run_control_loop_calls_before_step_hook_before_each_iteration() -> None
         "apply",
         "tick",
     ]
+
+
+def test_run_control_loop_supports_on_state_and_stop_before_apply_hooks() -> None:
+    events: list[str] = []
+    sampled_frames: list[int] = []
+    stop_checks: list[int] = []
+    loop = RunControlLoop(
+        state_reader=FakeStateReader(
+            states=[_state(1, 0.0), _state(2, 1.0), _state(3, 2.0)],
+            events=events,
+        ),
+        motion_actuator=FakeMotionActuator(events=events, applied=[]),
+        clock=FakeClock(events=events),
+        logger=FakeLogger(messages=[]),
+        controller=FakeController(events=events),
+    )
+
+    def _on_state(state: VehicleState) -> None:
+        sampled_frames.append(state.frame)
+
+    def _stop_before_apply(step: int, _state: VehicleState) -> bool:
+        stop_checks.append(step)
+        return step >= 3
+
+    result = loop.run(
+        vehicle_id=VehicleId(5),
+        target=TargetSpeedCommand(3.0),
+        max_steps=3,
+        on_state=_on_state,
+        stop_before_apply=_stop_before_apply,
+    )
+
+    assert result.executed_steps == 2
+    assert result.last_frame == 2
+    assert sampled_frames == [1, 2, 3]
+    assert stop_checks == [1, 2, 3]
