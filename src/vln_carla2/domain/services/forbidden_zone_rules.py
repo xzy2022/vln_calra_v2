@@ -31,14 +31,34 @@ def is_point_in_forbidden_zone(point: Point2D, zone: ForbiddenZone) -> bool:
     return inside
 
 
-def is_vehicle_state_in_forbidden_zone(state: VehicleState, zone: ForbiddenZone) -> bool:
-    """Use vehicle XY position only (yaw is ignored)."""
-    return is_point_in_forbidden_zone(Point2D(x=state.x, y=state.y), zone)
+def is_vehicle_state_in_forbidden_zone(
+    state: VehicleState,
+    zone: ForbiddenZone,
+) -> bool:
+    """Return True when actor origin or any configured probe point is inside zone."""
+    return any(
+        is_point_in_forbidden_zone(point=sample, zone=zone)
+        for sample in _vehicle_sample_points(state=state)
+    )
 
 
-def has_entered_forbidden_zone(states: Iterable[VehicleState], zone: ForbiddenZone) -> bool:
+def has_entered_forbidden_zone(
+    states: Iterable[VehicleState],
+    zone: ForbiddenZone,
+) -> bool:
     """Return True when any sampled state enters forbidden zone."""
-    return any(is_vehicle_state_in_forbidden_zone(state, zone) for state in states)
+    return any(
+        is_vehicle_state_in_forbidden_zone(state=state, zone=zone)
+        for state in states
+    )
+
+
+def _vehicle_sample_points(state: VehicleState) -> tuple[Point2D, ...]:
+    actor_origin = Point2D(x=state.x, y=state.y)
+    probe_points = tuple(
+        Point2D(x=float(x), y=float(y)) for x, y in state.forbidden_zone_probe_points_xy
+    )
+    return (actor_origin,) + probe_points
 
 
 def _is_ray_crossing_segment(*, x: float, y: float, start: Point2D, end: Point2D) -> bool:

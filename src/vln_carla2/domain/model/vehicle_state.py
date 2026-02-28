@@ -16,4 +16,4 @@ class VehicleState:
     vy: float
     vz: float
     speed_mps: float
-
+    forbidden_zone_probe_points_xy: tuple[tuple[float, float], ...] = ()

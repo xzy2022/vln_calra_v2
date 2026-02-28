@@ -95,7 +95,10 @@ class RunExpWorkflow:
 
         last_state = motion_log[-1]
         traveled_distance_m = _distance_xy(start_xy[0], start_xy[1], last_state.x, last_state.y)
-        entered_forbidden_zone = has_entered_forbidden_zone(motion_log, request.forbidden_zone)
+        entered_forbidden_zone = has_entered_forbidden_zone(
+            motion_log,
+            request.forbidden_zone,
+        )
         return ExpWorkflowResult(
             control_loop_result=control_loop_result,
             sampled_states=len(motion_log),

@@ -10,7 +10,13 @@ from vln_carla2.usecases.control.run_control_loop import LoopResult
 from vln_carla2.usecases.exp.run_exp_workflow import ExpWorkflowRequest, RunExpWorkflow
 
 
-def _state(*, frame: int, x: float, y: float) -> VehicleState:
+def _state(
+    *,
+    frame: int,
+    x: float,
+    y: float,
+    probe_points_xy: tuple[tuple[float, float], ...] = (),
+) -> VehicleState:
     return VehicleState(
         frame=frame,
         x=x,
@@ -21,6 +27,7 @@ def _state(*, frame: int, x: float, y: float) -> VehicleState:
         vy=0.0,
         vz=0.0,
         speed_mps=1.0,
+        forbidden_zone_probe_points_xy=probe_points_xy,
     )
 
 
@@ -153,3 +160,32 @@ def test_run_exp_workflow_raises_when_follow_target_missing() -> None:
                 forbidden_zone=_zone(min_x=20.0, max_x=22.0),
             )
         )
+
+
+def test_run_exp_workflow_detects_zone_entry_when_corner_only_hits() -> None:
+    usecase = RunExpWorkflow(
+        control_loop=_FakeControlLoop(
+            states=[
+                _state(frame=1, x=19.0, y=0.0),
+                _state(
+                    frame=2,
+                    x=19.6,
+                    y=0.0,
+                    probe_points_xy=((20.2, 0.0),),  # actor origin outside, probe inside zone
+                ),
+                _state(frame=3, x=19.8, y=0.0),
+            ]
+        ),
+        follow_vehicle_topdown=_FakeFollow(),
+    )
+
+    result = usecase.run(
+        ExpWorkflowRequest(
+            vehicle_id=VehicleId(7),
+            forbidden_zone=_zone(min_x=20.0, max_x=22.0),
+            forward_distance_m=20.0,
+            max_steps=800,
+        )
+    )
+
+    assert result.entered_forbidden_zone is True
