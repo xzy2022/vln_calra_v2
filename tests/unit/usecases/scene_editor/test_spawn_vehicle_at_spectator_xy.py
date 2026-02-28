@@ -3,8 +3,8 @@ from dataclasses import dataclass
 import pytest
 
 from vln_carla2.domain.model.scene_template import SceneObject, SceneObjectKind
-from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
-from vln_carla2.usecases.scene_editor.spawn_vehicle_at_spectator_xy import (
+from vln_carla2.usecases.runtime.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.scene.spawn_vehicle_at_spectator_xy import (
     SpawnVehicleAtSpectatorXY,
 )
 
@@ -215,3 +215,4 @@ def test_spawn_vehicle_at_spectator_xy_records_spawned_scene_object() -> None:
     assert obj.pose.y == 8.0
     assert obj.pose.z == 1.05
     assert obj.pose.yaw == 175.0
+

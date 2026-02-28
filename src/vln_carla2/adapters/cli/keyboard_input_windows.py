@@ -6,8 +6,8 @@ import ctypes
 from dataclasses import dataclass, field
 from typing import Any
 
-from vln_carla2.usecases.scene_editor.input_snapshot import EditorInputSnapshot
-from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
+from vln_carla2.usecases.scene.input_snapshot import EditorInputSnapshot
+from vln_carla2.usecases.shared.input_snapshot import InputSnapshot
 
 VK_LEFT = 0x25
 VK_UP = 0x26
@@ -139,3 +139,5 @@ class SceneEditorKeyboardInputWindows:
         if user32 is None:
             return False
         return bool(user32.GetAsyncKeyState(vk_code) & 0x8000)
+
+

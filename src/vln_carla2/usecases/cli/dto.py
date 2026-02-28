@@ -5,30 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from vln_carla2.usecases.shared.vehicle_dto import SpawnVehicleRequest
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput, VehicleRefScheme
+
 RuntimeMode = Literal["sync", "async"]
 WorkflowStrategy = Literal["serial", "parallel"]
 QualityLevel = Literal["Low", "Epic"]
-VehicleRefScheme = Literal["actor", "role", "first"]
-
-
-@dataclass(frozen=True, slots=True)
-class VehicleRefInput:
-    """Use-case-level vehicle reference input."""
-
-    scheme: VehicleRefScheme
-    value: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class SpawnVehicleRequest:
-    """Use-case-level spawn vehicle payload."""
-
-    blueprint_filter: str
-    spawn_x: float
-    spawn_y: float
-    spawn_z: float
-    spawn_yaw: float
-    role_name: str = "ego"
 
 
 @dataclass(frozen=True, slots=True)

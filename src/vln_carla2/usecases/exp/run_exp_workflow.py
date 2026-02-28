@@ -11,7 +11,7 @@ from vln_carla2.domain.model.simple_command import TargetSpeedCommand
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.domain.model.vehicle_state import VehicleState
 from vln_carla2.domain.services.forbidden_zone_rules import has_entered_forbidden_zone
-from vln_carla2.usecases.control.run_control_loop import LoopResult, RunControlLoop
+from vln_carla2.usecases.control.api import LoopResult, RunControlLoop
 
 
 class FollowVehicleProtocol(Protocol):

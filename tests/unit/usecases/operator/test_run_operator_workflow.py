@@ -6,14 +6,14 @@ import pytest
 
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
 from vln_carla2.usecases.control.run_control_loop import LoopResult
-from vln_carla2.usecases.operator.models import VehicleRefInput
-from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
-from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
-from vln_carla2.usecases.operator.run_operator_workflow import (
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
+from vln_carla2.usecases.runtime.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.runtime.resolve_vehicle_ref import ResolveVehicleRef
+from vln_carla2.usecases.runtime.run_operator_workflow import (
     OperatorWorkflowRequest,
     RunOperatorWorkflow,
 )
-from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
+from vln_carla2.usecases.runtime.spawn_vehicle import SpawnVehicle
 
 
 def _spawn_request() -> SpawnVehicleRequest:
@@ -204,3 +204,5 @@ def test_run_operator_workflow_raises_when_ref_missing_and_spawn_disabled() -> N
         )
 
     assert spawner.calls == []
+
+

@@ -1,6 +1,5 @@
-"""CLI orchestration use cases."""
+"""CLI slice."""
 
-from .service import CliApplicationService
+from .api import CliApplicationService
 
 __all__ = ["CliApplicationService"]
-

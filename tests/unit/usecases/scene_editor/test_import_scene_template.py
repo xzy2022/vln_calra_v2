@@ -1,7 +1,7 @@
 import pytest
 
 from vln_carla2.domain.model.scene_template import SceneObject, SceneObjectKind, ScenePose, SceneTemplate
-from vln_carla2.usecases.scene_editor.import_scene_template import ImportSceneTemplate
+from vln_carla2.usecases.scene.import_scene_template import ImportSceneTemplate
 
 
 class _FakeStore:
@@ -85,3 +85,4 @@ def test_import_scene_template_stops_on_first_spawn_error_without_rollback() -> 
         usecase.run("scene.json")
 
     assert len(spawner.calls) == 2
+

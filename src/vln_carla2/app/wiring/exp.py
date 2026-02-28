@@ -18,15 +18,15 @@ from vln_carla2.usecases.exp.run_exp_workflow import (
     ExpWorkflowResult,
     RunExpWorkflow,
 )
-from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.operator.models import VehicleRefInput
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
-from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
-from vln_carla2.usecases.safety.andrew_monotone_chain_forbidden_zone_builder import (
+from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
+from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.runtime.resolve_vehicle_ref import ResolveVehicleRef
+from vln_carla2.usecases.scene.andrew_monotone_chain_forbidden_zone_builder import (
     AndrewMonotoneChainForbiddenZoneBuilder,
 )
-from vln_carla2.usecases.safety.build_forbidden_zone_from_scene import BuildForbiddenZoneFromScene
-from vln_carla2.usecases.scene_editor.import_scene_template import ImportSceneTemplate
+from vln_carla2.usecases.scene.build_forbidden_zone_from_scene import BuildForbiddenZoneFromScene
+from vln_carla2.usecases.scene.import_scene_template import ImportSceneTemplate
 
 from .control import build_control_container
 from vln_carla2.infrastructure.carla.session_runtime import (
@@ -210,3 +210,5 @@ def _describe_current_vehicles(world: Any) -> str:
         f"(actor_id={vehicle.actor_id} type_id={vehicle.type_id} role_name={vehicle.role_name})"
         for vehicle in vehicles
     )
+
+

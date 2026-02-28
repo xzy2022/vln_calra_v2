@@ -15,7 +15,7 @@ from vln_carla2.usecases.cli.dto import (
     VehicleRefInput,
     VehicleSpawnRequest,
 )
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.shared.vehicle_dto import VehicleDescriptor
 
 
 class CliWorkflowPort(Protocol):
@@ -49,4 +49,5 @@ class CliWorkflowPort(Protocol):
 
     def format_vehicle_ref(self, ref: VehicleRefInput) -> str:
         ...
+
 

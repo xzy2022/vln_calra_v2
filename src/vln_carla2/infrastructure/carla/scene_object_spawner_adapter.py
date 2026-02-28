@@ -6,7 +6,7 @@ from typing import Any
 
 from vln_carla2.domain.model.scene_template import SceneObject
 from vln_carla2.infrastructure.carla.spawner import spawn_vehicle
-from vln_carla2.usecases.scene_editor.ports.scene_object_spawner import SceneObjectSpawnerPort
+from vln_carla2.usecases.scene.ports.scene_object_spawner import SceneObjectSpawnerPort
 
 
 class CarlaSceneObjectSpawnerAdapter(SceneObjectSpawnerPort):
@@ -25,3 +25,4 @@ class CarlaSceneObjectSpawnerAdapter(SceneObjectSpawnerPort):
             spawn_yaw=obj.pose.yaw,
             role_name=obj.role_name,
         )
+

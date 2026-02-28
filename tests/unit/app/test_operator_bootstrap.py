@@ -8,8 +8,8 @@ import pytest
 
 from vln_carla2.app.wiring import operator
 from vln_carla2.usecases.control.run_control_loop import LoopResult
-from vln_carla2.usecases.operator.models import VehicleRefInput
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
+from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 
 
 def _result(actor_id: int = 7):
@@ -146,3 +146,5 @@ def test_build_control_loop_for_actor_returns_run_control_loop(
     got = operator._build_control_loop_for_actor(world, 5)
 
     assert got is sentinel_loop
+
+

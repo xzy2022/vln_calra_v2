@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from vln_carla2.domain.model.vehicle_id import VehicleId
-from vln_carla2.usecases.spectator.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
 
 
 @dataclass
@@ -102,3 +102,4 @@ def test_follow_vehicle_topdown_returns_false_when_vehicle_missing() -> None:
     assert transform.rotation.yaw == 2.0
     assert transform.rotation.roll == 3.0
     assert world.set_calls == 0
+

@@ -8,8 +8,8 @@ from vln_carla2.infrastructure.carla._vehicle_mapper import (
     iter_vehicle_actors,
     to_vehicle_descriptor,
 )
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
-from vln_carla2.usecases.operator.ports.vehicle_catalog import VehicleCatalogPort
+from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.runtime.ports.vehicle_catalog import VehicleCatalogPort
 
 
 class CarlaVehicleCatalogAdapter(VehicleCatalogPort):
@@ -22,3 +22,4 @@ class CarlaVehicleCatalogAdapter(VehicleCatalogPort):
         actors = list(iter_vehicle_actors(self._world))
         actors.sort(key=lambda actor: int(actor.id))
         return [to_vehicle_descriptor(actor) for actor in actors]
+

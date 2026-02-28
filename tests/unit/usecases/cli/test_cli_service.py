@@ -21,7 +21,7 @@ from vln_carla2.usecases.cli.dto import (
 )
 from vln_carla2.usecases.cli.errors import CliRuntimeError, CliUsageError
 from vln_carla2.usecases.cli.service import CliApplicationService
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 
 
 @dataclass
@@ -322,4 +322,5 @@ def test_spectator_follow_skips_when_session_is_offscreen() -> None:
 
     assert result.skipped_offscreen is True
     assert workflows.spectator_follow_calls == []
+
 

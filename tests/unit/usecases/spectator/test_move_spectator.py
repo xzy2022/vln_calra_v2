@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
-from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
+from vln_carla2.usecases.shared.input_snapshot import InputSnapshot
+from vln_carla2.usecases.runtime.move_spectator import MoveSpectator
 
 
 @dataclass
@@ -83,3 +83,5 @@ def test_move_spectator_requires_both_bounds_or_none() -> None:
     )
     with pytest.raises(ValueError):
         MoveSpectator(world=world, min_z=0.0, max_z=None)
+
+

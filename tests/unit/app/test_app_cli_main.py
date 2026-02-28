@@ -15,7 +15,7 @@ from vln_carla2.usecases.cli.dto import (
     VehicleRefInput,
 )
 from vln_carla2.usecases.cli.errors import CliRuntimeError, CliUsageError
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 
 
 @dataclass
@@ -247,3 +247,4 @@ def test_dispatch_maps_runtime_error_to_exit_code_1(capsys) -> None:
 
     assert exit_code == 1
     assert "[ERROR] runtime broke" in stderr
+

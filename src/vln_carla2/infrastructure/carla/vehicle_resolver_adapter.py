@@ -11,8 +11,8 @@ from vln_carla2.infrastructure.carla._vehicle_mapper import (
     role_name,
     to_vehicle_descriptor,
 )
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
-from vln_carla2.usecases.operator.ports.vehicle_resolver import VehicleResolverPort
+from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.runtime.ports.vehicle_resolver import VehicleResolverPort
 
 
 class CarlaVehicleResolverAdapter(VehicleResolverPort):
@@ -43,3 +43,4 @@ class CarlaVehicleResolverAdapter(VehicleResolverPort):
             return to_vehicle_descriptor(vehicles[0])
 
         return None
+

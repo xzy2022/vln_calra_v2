@@ -27,8 +27,8 @@ from vln_carla2.usecases.cli.dto import (
     VehicleSpawnRequest,
 )
 from vln_carla2.usecases.cli.ports.workflows import CliWorkflowPort
-from vln_carla2.usecases.operator.models import VehicleRefInput as OperatorVehicleRefInput
-from vln_carla2.usecases.operator.ports.vehicle_dto import (
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput as OperatorVehicleRefInput
+from vln_carla2.usecases.runtime.ports.vehicle_dto import (
     SpawnVehicleRequest as OperatorSpawnVehicleRequest,
     VehicleDescriptor,
 )
@@ -243,4 +243,6 @@ def _to_operator_spawn_request(request: SpawnVehicleRequest) -> OperatorSpawnVeh
         spawn_yaw=request.spawn_yaw,
         role_name=request.role_name,
     )
+
+
 

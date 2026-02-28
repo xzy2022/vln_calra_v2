@@ -1,7 +1,7 @@
 import pytest
 
 from vln_carla2.domain.model.point2d import Point2D
-from vln_carla2.usecases.safety.andrew_monotone_chain_forbidden_zone_builder import (
+from vln_carla2.usecases.scene.andrew_monotone_chain_forbidden_zone_builder import (
     AndrewMonotoneChainForbiddenZoneBuilder,
 )
 
@@ -51,3 +51,4 @@ def test_build_rejects_collinear_points() -> None:
                 Point2D(x=3.0, y=3.0),
             ]
         )
+

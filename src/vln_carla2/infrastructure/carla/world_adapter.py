@@ -6,7 +6,7 @@ from typing import Any
 
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.infrastructure.carla.types import require_carla
-from vln_carla2.usecases.spectator.ports.spectator_transform import SpectatorTransform
+from vln_carla2.usecases.runtime.ports.spectator_transform import SpectatorTransform
 
 
 class CarlaWorldAdapter:
@@ -42,3 +42,4 @@ class CarlaWorldAdapter:
                 f"no road waypoint found near spectator XY (x={x:.3f}, y={y:.3f})"
             )
         return float(waypoint.transform.location.z)
+

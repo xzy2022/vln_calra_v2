@@ -1,5 +1,5 @@
-"""Control-track use cases."""
+"""Control slice."""
 
-from .run_control_loop import LoopResult, RunControlLoop
+from .api import LoopResult, RunControlLoop
 
 __all__ = ["RunControlLoop", "LoopResult"]

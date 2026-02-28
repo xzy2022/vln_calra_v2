@@ -21,8 +21,8 @@ from vln_carla2.adapters.cli.keyboard_input_windows import (
     KeyboardInputWindows,
     SceneEditorKeyboardInputWindows,
 )
-from vln_carla2.usecases.scene_editor.input_snapshot import EditorInputSnapshot
-from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
+from vln_carla2.usecases.scene.input_snapshot import EditorInputSnapshot
+from vln_carla2.usecases.shared.input_snapshot import InputSnapshot
 
 
 class _FakeUser32:
@@ -188,3 +188,5 @@ def test_scene_editor_keyboard_maps_held_axes_and_toggle() -> None:
         held_dz=0.5,
         pressed_toggle_mode=True,
     )
+
+

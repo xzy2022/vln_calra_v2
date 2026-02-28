@@ -1,9 +1,5 @@
-"""Experiment-oriented use cases."""
+"""Exp slice."""
 
-from .run_exp_workflow import ExpWorkflowRequest, ExpWorkflowResult, RunExpWorkflow
+from .api import ExpWorkflowRequest, ExpWorkflowResult, RunExpWorkflow
 
-__all__ = [
-    "ExpWorkflowRequest",
-    "ExpWorkflowResult",
-    "RunExpWorkflow",
-]
+__all__ = ["ExpWorkflowRequest", "ExpWorkflowResult", "RunExpWorkflow"]

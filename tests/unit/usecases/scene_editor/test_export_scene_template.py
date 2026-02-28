@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from vln_carla2.domain.model.scene_template import SceneObject, SceneObjectKind, ScenePose, SceneTemplate
-from vln_carla2.usecases.scene_editor.export_scene_template import ExportSceneTemplate
+from vln_carla2.usecases.scene.export_scene_template import ExportSceneTemplate
 
 
 @dataclass
@@ -61,3 +61,4 @@ def test_export_scene_template_allows_runtime_path_override() -> None:
     assert len(store.calls) == 1
     _, path = store.calls[0]
     assert path == "override.json"
+

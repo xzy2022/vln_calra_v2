@@ -15,8 +15,8 @@ from vln_carla2.domain.model.scene_template import (
 )
 from vln_carla2.usecases.control.run_control_loop import LoopResult
 from vln_carla2.usecases.exp.run_exp_workflow import ExpWorkflowResult
-from vln_carla2.usecases.operator.models import VehicleRefInput
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
+from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 
 
 def _scene_template() -> SceneTemplate:
@@ -225,3 +225,5 @@ def test_resolve_control_target_with_retry_includes_vehicle_list_on_failure(
         )
 
     assert "actor_id=11" in str(exc.value)
+
+

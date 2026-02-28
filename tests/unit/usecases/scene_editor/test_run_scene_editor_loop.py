@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
-from vln_carla2.usecases.scene_editor.input_snapshot import EditorInputSnapshot
-from vln_carla2.usecases.scene_editor.models import EditorMode, EditorState
-from vln_carla2.usecases.scene_editor.run_scene_editor_loop import RunSceneEditorLoop
-from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
+from vln_carla2.usecases.scene.input_snapshot import EditorInputSnapshot
+from vln_carla2.usecases.scene.models import EditorMode, EditorState
+from vln_carla2.usecases.scene.run_scene_editor_loop import RunSceneEditorLoop
+from vln_carla2.usecases.shared.input_snapshot import InputSnapshot
 
 
 @dataclass
@@ -382,3 +382,5 @@ def test_export_hotkey_errors_are_reported() -> None:
     assert export.calls == 1
     assert len(errors) == 1
     assert errors[0].startswith("[ERROR] scene export failed:")
+
+

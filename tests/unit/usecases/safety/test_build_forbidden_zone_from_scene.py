@@ -8,7 +8,7 @@ from vln_carla2.domain.model.scene_template import (
     ScenePose,
     SceneTemplate,
 )
-from vln_carla2.usecases.safety.build_forbidden_zone_from_scene import (
+from vln_carla2.usecases.scene.build_forbidden_zone_from_scene import (
     BuildForbiddenZoneFromScene,
 )
 
@@ -137,3 +137,4 @@ def test_run_rejects_when_scene_has_no_barrels() -> None:
 
     with pytest.raises(ValueError, match="no barrel"):
         usecase.run("scene.json")
+

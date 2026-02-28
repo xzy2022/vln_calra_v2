@@ -14,19 +14,19 @@ from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
 from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
 from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
-from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
-from vln_carla2.usecases.scene_editor.export_scene_template import ExportSceneTemplate
-from vln_carla2.usecases.scene_editor.import_scene_template import ImportSceneTemplate
-from vln_carla2.usecases.scene_editor.models import EditorMode, EditorState
-from vln_carla2.usecases.scene_editor.record_spawned_scene_object import (
+from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.runtime.spawn_vehicle import SpawnVehicle
+from vln_carla2.usecases.scene.export_scene_template import ExportSceneTemplate
+from vln_carla2.usecases.scene.import_scene_template import ImportSceneTemplate
+from vln_carla2.usecases.scene.models import EditorMode, EditorState
+from vln_carla2.usecases.scene.record_spawned_scene_object import (
     RecordSpawnedSceneObject,
 )
-from vln_carla2.usecases.scene_editor.run_scene_editor_loop import RunSceneEditorLoop
-from vln_carla2.usecases.scene_editor.spawn_vehicle_at_spectator_xy import (
+from vln_carla2.usecases.scene.run_scene_editor_loop import RunSceneEditorLoop
+from vln_carla2.usecases.scene.spawn_vehicle_at_spectator_xy import (
     SpawnVehicleAtSpectatorXY,
 )
-from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
+from vln_carla2.usecases.runtime.move_spectator import MoveSpectator
 
 from vln_carla2.infrastructure.carla.session_runtime import (
     CarlaSessionConfig,
@@ -246,3 +246,4 @@ def _initialize_spectator_top_down(*, world_adapter: CarlaWorldAdapter, initial_
     transform.rotation.yaw = 0.0
     transform.rotation.roll = 0.0
     world_adapter.set_spectator_transform(transform)
+

@@ -1,18 +1,33 @@
 """Use case layer."""
 
 from .control import LoopResult, RunControlLoop
-from .scene_editor import (
+from .exp import ExpWorkflowRequest, ExpWorkflowResult, RunExpWorkflow
+from .runtime import (
+    FollowVehicleTopDown,
+    MoveSpectator,
+    OperatorWorkflowRequest,
+    OperatorWorkflowResult,
+    RunOperatorLoop,
+    RunOperatorWorkflow,
+)
+from .scene import (
+    AndrewMonotoneChainForbiddenZoneBuilder,
+    BuildForbiddenZoneFromScene,
     EditorInputSnapshot,
     EditorMode,
     EditorState,
     RunSceneEditorLoop,
     SpawnVehicleAtSpectatorXY,
 )
-from .spectator import FollowVehicleTopDown, InputSnapshot, MoveSpectator
+from .shared import InputSnapshot, SpawnVehicleRequest, VehicleDescriptor, VehicleRefInput
 
 __all__ = [
     "RunControlLoop",
     "LoopResult",
+    "RunOperatorWorkflow",
+    "RunOperatorLoop",
+    "OperatorWorkflowRequest",
+    "OperatorWorkflowResult",
     "MoveSpectator",
     "InputSnapshot",
     "FollowVehicleTopDown",
@@ -21,4 +36,12 @@ __all__ = [
     "EditorMode",
     "EditorState",
     "EditorInputSnapshot",
+    "RunExpWorkflow",
+    "ExpWorkflowRequest",
+    "ExpWorkflowResult",
+    "BuildForbiddenZoneFromScene",
+    "AndrewMonotoneChainForbiddenZoneBuilder",
+    "VehicleDescriptor",
+    "SpawnVehicleRequest",
+    "VehicleRefInput",
 ]

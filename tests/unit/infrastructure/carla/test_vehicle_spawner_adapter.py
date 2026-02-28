@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
-from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest
+from vln_carla2.usecases.runtime.ports.vehicle_dto import SpawnVehicleRequest
 
 
 @dataclass
@@ -102,3 +102,4 @@ def test_vehicle_spawner_adapter_falls_back_to_requested_role_name(monkeypatch) 
 
     assert got.actor_id == 88
     assert got.role_name == "ego"
+

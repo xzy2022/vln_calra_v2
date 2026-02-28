@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
 from vln_carla2.domain.model.vehicle_id import VehicleId
-from vln_carla2.usecases.operator.follow_vehicle_topdown import FollowVehicleTopDown
-from vln_carla2.usecases.operator.run_operator_loop import RunOperatorLoop
-from vln_carla2.usecases.spectator.input_snapshot import InputSnapshot
+from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.runtime.run_operator_loop import RunOperatorLoop
+from vln_carla2.usecases.shared.input_snapshot import InputSnapshot
 
 
 @dataclass
@@ -195,8 +195,10 @@ def test_run_operator_loop_step_can_skip_tick() -> None:
 
 
 def test_legacy_follow_import_points_to_operator_usecase() -> None:
-    from vln_carla2.usecases.spectator.follow_vehicle_topdown import (
+    from vln_carla2.usecases.runtime.follow_vehicle_topdown import (
         FollowVehicleTopDown as LegacyFollow,
     )
 
     assert LegacyFollow is FollowVehicleTopDown
+
+

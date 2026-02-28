@@ -6,8 +6,8 @@ from typing import Any
 
 from vln_carla2.infrastructure.carla._vehicle_mapper import to_vehicle_descriptor
 from vln_carla2.infrastructure.carla.spawner import spawn_vehicle
-from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
-from vln_carla2.usecases.operator.ports.vehicle_spawner import VehicleSpawnerPort
+from vln_carla2.usecases.runtime.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.runtime.ports.vehicle_spawner import VehicleSpawnerPort
 
 
 class CarlaVehicleSpawnerAdapter(VehicleSpawnerPort):
@@ -30,3 +30,4 @@ class CarlaVehicleSpawnerAdapter(VehicleSpawnerPort):
             actor,
             default_role_name=request.role_name,
         )
+

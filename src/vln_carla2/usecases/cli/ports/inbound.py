@@ -16,7 +16,7 @@ from vln_carla2.usecases.cli.dto import (
     VehicleListRequest,
     VehicleSpawnRequest,
 )
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.shared.vehicle_dto import VehicleDescriptor
 
 
 class CliApplicationUseCasePort(Protocol):
@@ -39,4 +39,5 @@ class CliApplicationUseCasePort(Protocol):
 
     def run_spectator_follow(self, request: SpectatorFollowRequest) -> SpectatorFollowResult:
         ...
+
 

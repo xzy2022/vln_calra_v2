@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 
 
 def iter_vehicle_actors(world: Any) -> Iterable[Any]:
@@ -43,3 +43,4 @@ def to_vehicle_descriptor(actor: Any, *, default_role_name: str = "") -> Vehicle
         y=float(transform.location.y),
         z=float(transform.location.z),
     )
+

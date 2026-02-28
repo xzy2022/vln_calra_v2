@@ -26,7 +26,7 @@ from vln_carla2.usecases.cli.ports.runtime_session_registry import RuntimeSessio
 from vln_carla2.usecases.cli.ports.scene_template_loader import SceneTemplateLoaderPort
 from vln_carla2.usecases.cli.ports.server_control import CarlaServerControlPort
 from vln_carla2.usecases.cli.ports.workflows import CliWorkflowPort
-from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
+from vln_carla2.usecases.shared.vehicle_dto import VehicleDescriptor
 
 _WARN_OFFSCREEN = "--offscreen only affects launched CARLA server (enable --launch-carla)."
 _WARN_NO_RENDERING = (
@@ -299,4 +299,5 @@ class CliApplicationService(CliApplicationUseCasePort):
                 except Exception:
                     pass
             raise CliRuntimeError(f"failed to launch CARLA server: {exc}") from exc
+
 

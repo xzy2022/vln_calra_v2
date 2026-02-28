@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 
 from vln_carla2.domain.model.vehicle_ref import VehicleRef
-from vln_carla2.usecases.operator.list_vehicles import ListVehicles
-from vln_carla2.usecases.operator.models import VehicleRefInput
-from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
-from vln_carla2.usecases.operator.resolve_vehicle_ref import ResolveVehicleRef
-from vln_carla2.usecases.operator.spawn_vehicle import SpawnVehicle
+from vln_carla2.usecases.runtime.list_vehicles import ListVehicles
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
+from vln_carla2.usecases.runtime.ports.vehicle_dto import SpawnVehicleRequest, VehicleDescriptor
+from vln_carla2.usecases.runtime.resolve_vehicle_ref import ResolveVehicleRef
+from vln_carla2.usecases.runtime.spawn_vehicle import SpawnVehicle
 
 
 @dataclass
@@ -97,3 +97,5 @@ def test_resolve_vehicle_ref_calls_resolver_and_returns_result() -> None:
 
     assert got == expected
     assert fake_resolver.calls == [VehicleRef(scheme="role", value="ego")]
+
+
