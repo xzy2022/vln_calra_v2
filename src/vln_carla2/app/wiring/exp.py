@@ -7,6 +7,7 @@ from typing import Any
 
 from vln_carla2.domain.model.episode_spec import EpisodeTransform
 from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.infrastructure.carla.state_reader import CarlaVehicleStateReader
 from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
     CarlaSceneObjectSpawnerAdapter,
 )
@@ -14,7 +15,12 @@ from vln_carla2.infrastructure.carla.vehicle_catalog_adapter import CarlaVehicle
 from vln_carla2.infrastructure.carla.vehicle_resolver_adapter import CarlaVehicleResolverAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
 from vln_carla2.infrastructure.filesystem.episode_spec_json_store import EpisodeSpecJsonStore
+from vln_carla2.infrastructure.filesystem.exp_metrics_json_store import ExpMetricsJsonStore
 from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
+from vln_carla2.usecases.exp.generate_exp_metrics_artifact import (
+    ExpMetricsRequest,
+    GenerateExpMetricsArtifact,
+)
 from vln_carla2.usecases.exp.run_exp_workflow import (
     ExpWorkflowRequest,
     ExpWorkflowResult,
@@ -92,6 +98,7 @@ class ExpRunResult:
     start_transform: EpisodeTransform
     goal_transform: EpisodeTransform
     exp_workflow_result: ExpWorkflowResult
+    metrics_path: str
 
 
 def run_exp_workflow(settings: ExpRunSettings) -> ExpRunResult:
@@ -155,6 +162,17 @@ def run_exp_workflow(settings: ExpRunSettings) -> ExpRunResult:
                 max_steps=settings.max_steps,
             )
         )
+        final_state = CarlaVehicleStateReader(session.world).read(vehicle_id)
+        metrics_result = GenerateExpMetricsArtifact(store=ExpMetricsJsonStore()).run(
+            ExpMetricsRequest(
+                episode_spec_path=settings.episode_spec_path,
+                entered_forbidden_zone=exp_result.entered_forbidden_zone,
+                final_x=final_state.x,
+                final_y=final_state.y,
+                goal_x=episode_spec.goal_transform.x,
+                goal_y=episode_spec.goal_transform.y,
+            )
+        )
 
     return ExpRunResult(
         episode_spec_path=settings.episode_spec_path,
@@ -167,6 +185,7 @@ def run_exp_workflow(settings: ExpRunSettings) -> ExpRunResult:
         start_transform=episode_spec.start_transform,
         goal_transform=episode_spec.goal_transform,
         exp_workflow_result=exp_result,
+        metrics_path=metrics_result.metrics_path,
     )
 
 

@@ -14,6 +14,7 @@ from vln_carla2.domain.model.scene_template import (
     ScenePose,
     SceneTemplate,
 )
+from vln_carla2.domain.model.vehicle_state import VehicleState
 from vln_carla2.usecases.control.run_control_loop import LoopResult
 from vln_carla2.usecases.exp.run_exp_workflow import ExpWorkflowResult
 from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
@@ -117,6 +118,35 @@ def test_run_wires_exp_dependencies_and_returns_result(monkeypatch: pytest.Monke
             captured["exp_request"] = request
             return expected_exp_result
 
+    class FakeCarlaVehicleStateReader:
+        def __init__(self, world: Any) -> None:
+            captured["state_reader_world"] = world
+
+        def read(self, vehicle_id: Any) -> VehicleState:
+            captured["state_reader_vehicle_id"] = vehicle_id
+            return VehicleState(
+                frame=100,
+                x=7.0,
+                y=19.0,
+                z=0.1,
+                yaw_deg=0.0,
+                vx=0.0,
+                vy=0.0,
+                vz=0.0,
+                speed_mps=0.0,
+                forbidden_zone_probe_points_xy=(),
+            )
+
+    class FakeGenerateExpMetricsArtifact:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["metrics_init"] = kwargs
+
+        def run(self, request: Any) -> Any:
+            captured["metrics_request"] = request
+            return SimpleNamespace(
+                metrics_path="runs/20260228_161718/results/ep_000001/metrics.json"
+            )
+
     monkeypatch.setattr(exp, "SceneTemplateJsonStore", lambda: FakeSceneStore())
     monkeypatch.setattr(exp, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
     monkeypatch.setattr(exp, "managed_carla_session", fake_managed_session)
@@ -144,6 +174,9 @@ def test_run_wires_exp_dependencies_and_returns_result(monkeypatch: pytest.Monke
     monkeypatch.setattr(exp, "CarlaWorldAdapter", lambda _world: "world-adapter")
     monkeypatch.setattr(exp, "FollowVehicleTopDown", lambda **kwargs: ("follow", kwargs))
     monkeypatch.setattr(exp, "RunExpWorkflow", FakeRunExpWorkflow)
+    monkeypatch.setattr(exp, "CarlaVehicleStateReader", FakeCarlaVehicleStateReader)
+    monkeypatch.setattr(exp, "ExpMetricsJsonStore", lambda: "metrics-store")
+    monkeypatch.setattr(exp, "GenerateExpMetricsArtifact", FakeGenerateExpMetricsArtifact)
 
     settings = exp.ExpRunSettings(
         episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
@@ -175,6 +208,19 @@ def test_run_wires_exp_dependencies_and_returns_result(monkeypatch: pytest.Monke
     assert got.start_transform == episode_spec.start_transform
     assert got.goal_transform == episode_spec.goal_transform
     assert got.exp_workflow_result == expected_exp_result
+    assert captured["state_reader_world"] is fake_world
+    assert captured["state_reader_vehicle_id"].value == 42
+    assert captured["metrics_init"]["store"] == "metrics-store"
+    assert (
+        captured["metrics_request"].episode_spec_path
+        == "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"
+    )
+    assert captured["metrics_request"].entered_forbidden_zone is True
+    assert captured["metrics_request"].final_x == 7.0
+    assert captured["metrics_request"].final_y == 19.0
+    assert captured["metrics_request"].goal_x == 10.0
+    assert captured["metrics_request"].goal_y == 20.0
+    assert got.metrics_path == "runs/20260228_161718/results/ep_000001/metrics.json"
 
 
 def test_build_control_loop_for_actor_raises_when_actor_missing() -> None:

@@ -1,5 +1,19 @@
 """Exp slice."""
 
-from .api import ExpWorkflowRequest, ExpWorkflowResult, RunExpWorkflow
+from .api import (
+    ExpMetricsRequest,
+    ExpMetricsResult,
+    ExpWorkflowRequest,
+    ExpWorkflowResult,
+    GenerateExpMetricsArtifact,
+    RunExpWorkflow,
+)
 
-__all__ = ["ExpWorkflowRequest", "ExpWorkflowResult", "RunExpWorkflow"]
+__all__ = [
+    "ExpMetricsRequest",
+    "ExpMetricsResult",
+    "GenerateExpMetricsArtifact",
+    "ExpWorkflowRequest",
+    "ExpWorkflowResult",
+    "RunExpWorkflow",
+]

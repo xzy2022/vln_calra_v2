@@ -172,6 +172,7 @@ class ExpWorkflowExecution:
     control_steps: int
     start_transform: EpisodeTransform | None = None
     goal_transform: EpisodeTransform | None = None
+    metrics_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

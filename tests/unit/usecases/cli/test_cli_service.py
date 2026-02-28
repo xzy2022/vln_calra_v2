@@ -51,6 +51,7 @@ class _FakeWorkflows:
             traveled_distance_m=21.0,
             entered_forbidden_zone=False,
             control_steps=5,
+            metrics_path="runs/20260228_161718/results/ep_000001/metrics.json",
         )
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:
@@ -312,6 +313,15 @@ def test_exp_scene_template_validation_error_maps_to_runtime_error() -> None:
 
     with pytest.raises(CliRuntimeError, match="argument validation failed"):
         service.run_exp(_exp_request())
+
+
+def test_run_exp_returns_execution_with_metrics_path() -> None:
+    service = _build_service()
+
+    result = service.run_exp(_exp_request())
+
+    assert result.execution is not None
+    assert result.execution.metrics_path == "runs/20260228_161718/results/ep_000001/metrics.json"
 
 
 def test_spectator_follow_skips_when_session_is_offscreen() -> None:

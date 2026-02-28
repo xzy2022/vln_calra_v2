@@ -123,6 +123,7 @@ class CliWorkflowGateway(CliWorkflowPort):
             control_steps=result.exp_workflow_result.control_loop_result.executed_steps,
             start_transform=result.start_transform,
             goal_transform=result.goal_transform,
+            metrics_path=result.metrics_path,
         )
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:

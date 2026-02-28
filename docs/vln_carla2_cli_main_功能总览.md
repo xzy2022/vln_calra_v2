@@ -275,6 +275,19 @@ python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sy
 ```
 
 运行后可使用 `+/-` 调整跟随高度；`/` 不会切换模式（锁定 Follow）。
+命令成功结束后会额外输出 metrics 文件路径，默认写入：
+
+```text
+runs/<YYYYMMDD_HHMMSS>/results/<episode目录名>/metrics.json
+```
+
+当前 metrics 内容包含：
+
+- `entered_forbidden_zone`
+- `final_position_xy`
+- `goal_position_xy`
+- `final_to_goal_distance_xy_m`
+- `episode_spec_path`
 
 ## 12. Python 调用示例（非 CLI）
 

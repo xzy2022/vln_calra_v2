@@ -226,6 +226,8 @@ def _print_exp_result(result: ExpRunResult) -> None:
         "[RESULT] forbidden_zone="
         f"{status} entered_forbidden_zone={execution.entered_forbidden_zone}"
     )
+    if execution.metrics_path is not None:
+        print(f"[INFO] metrics saved path={execution.metrics_path}")
 
 
 def _print_launch_report(

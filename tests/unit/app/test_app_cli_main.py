@@ -59,6 +59,7 @@ class _FakeApp:
                 traveled_distance_m=20.5,
                 entered_forbidden_zone=False,
                 control_steps=5,
+                metrics_path="runs/20260228_161718/results/ep_000001/metrics.json",
             ),
         )
 
@@ -212,6 +213,25 @@ def test_dispatch_vehicle_spawn_outputs_json(capsys) -> None:
     assert exit_code == 0
     assert payload["actor_id"] == 99
     assert app.vehicle_spawn_calls
+
+
+def test_dispatch_exp_prints_metrics_path(capsys) -> None:
+    app = _FakeApp()
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "exp",
+            "run",
+            "--episode-spec",
+            "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        ]
+    )
+
+    exit_code = dispatch_args(args, app=app, parser=parser)
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "metrics saved path=runs/20260228_161718/results/ep_000001/metrics.json" in stdout
 
 
 def test_dispatch_operator_rejects_invalid_follow_ref(capsys) -> None:
