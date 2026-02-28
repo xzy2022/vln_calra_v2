@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from vln_carla2.domain.model.episode_spec import EpisodeTransform
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
     CarlaSceneObjectSpawnerAdapter,
@@ -12,6 +13,7 @@ from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
 from vln_carla2.infrastructure.carla.vehicle_catalog_adapter import CarlaVehicleCatalogAdapter
 from vln_carla2.infrastructure.carla.vehicle_resolver_adapter import CarlaVehicleResolverAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
+from vln_carla2.infrastructure.filesystem.episode_spec_json_store import EpisodeSpecJsonStore
 from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
 from vln_carla2.usecases.exp.run_exp_workflow import (
     ExpWorkflowRequest,
@@ -45,7 +47,7 @@ def _default_control_target() -> VehicleRefInput:
 class ExpRunSettings:
     """Configuration for one experiment run."""
 
-    scene_json_path: str
+    episode_spec_path: str
     host: str = "127.0.0.1"
     port: int = 2000
     timeout_seconds: float = 10.0
@@ -60,8 +62,8 @@ class ExpRunSettings:
     max_steps: int = 800
 
     def __post_init__(self) -> None:
-        if not self.scene_json_path or not self.scene_json_path.strip():
-            raise ValueError("scene_json_path must not be empty")
+        if not self.episode_spec_path or not self.episode_spec_path.strip():
+            raise ValueError("episode_spec_path must not be empty")
         if self.port <= 0:
             raise ValueError("port must be positive")
         if self.timeout_seconds <= 0:
@@ -80,19 +82,28 @@ class ExpRunSettings:
 class ExpRunResult:
     """Summary of one completed exp run."""
 
+    episode_spec_path: str
     scene_json_path: str
     scene_map_name: str
     control_target: VehicleRefInput
     selected_vehicle: VehicleDescriptor
     imported_objects: int
     forward_distance_m: float
+    start_transform: EpisodeTransform
+    goal_transform: EpisodeTransform
     exp_workflow_result: ExpWorkflowResult
 
 
 def run_exp_workflow(settings: ExpRunSettings) -> ExpRunResult:
     """Run experiment workflow in one managed CARLA session."""
+    episode_store = EpisodeSpecJsonStore()
+    episode_spec = episode_store.load(settings.episode_spec_path)
+    scene_json_path = episode_store.resolve_scene_json_path(
+        episode_spec=episode_spec,
+        episode_spec_path=settings.episode_spec_path,
+    )
     scene_store = SceneTemplateJsonStore()
-    scene_template = scene_store.load(settings.scene_json_path)
+    scene_template = scene_store.load(scene_json_path)
 
     session_config = CarlaSessionConfig(
         host=settings.host,
@@ -110,7 +121,7 @@ def run_exp_workflow(settings: ExpRunSettings) -> ExpRunResult:
             store=scene_store,
             spawner=CarlaSceneObjectSpawnerAdapter(session.world),
             expected_map_name=scene_template.map_name,
-        ).run(settings.scene_json_path)
+        ).run(scene_json_path)
 
         selected_vehicle = _resolve_control_target_with_retry(
             world=session.world,
@@ -123,7 +134,7 @@ def run_exp_workflow(settings: ExpRunSettings) -> ExpRunResult:
             scene_loader=scene_store,
             zone_builder=AndrewMonotoneChainForbiddenZoneBuilder(),
             expected_map_name=scene_template.map_name,
-        ).run(settings.scene_json_path)
+        ).run(scene_json_path)
 
         vehicle_id = VehicleId(selected_vehicle.actor_id)
         world_adapter = CarlaWorldAdapter(session.world)
@@ -146,12 +157,15 @@ def run_exp_workflow(settings: ExpRunSettings) -> ExpRunResult:
         )
 
     return ExpRunResult(
-        scene_json_path=settings.scene_json_path,
+        episode_spec_path=settings.episode_spec_path,
+        scene_json_path=scene_json_path,
         scene_map_name=scene_template.map_name,
         control_target=settings.control_target,
         selected_vehicle=selected_vehicle,
         imported_objects=imported_objects,
         forward_distance_m=settings.forward_distance_m,
+        start_transform=episode_spec.start_transform,
+        goal_transform=episode_spec.goal_transform,
         exp_workflow_result=exp_result,
     )
 

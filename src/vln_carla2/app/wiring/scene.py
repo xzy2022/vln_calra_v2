@@ -13,6 +13,7 @@ from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
 )
 from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
+from vln_carla2.infrastructure.filesystem.episode_spec_json_store import EpisodeSpecJsonStore
 from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
 from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.runtime.spawn_vehicle import SpawnVehicle
@@ -63,6 +64,8 @@ class SceneEditorSettings:
     keyboard_z_step: float = 1.0
     scene_import_path: str | None = None
     scene_export_path: str | None = None
+    export_episode_spec: bool = False
+    episode_spec_export_dir: str | None = None
     start_in_follow_mode: bool = False
     allow_mode_toggle: bool = True
     allow_spawn_vehicle_hotkey: bool = True
@@ -90,6 +93,8 @@ class SceneEditorSettings:
             raise ValueError("scene_import_path must not be empty when set")
         if self.scene_export_path is not None and not self.scene_export_path.strip():
             raise ValueError("scene_export_path must not be empty when set")
+        if self.episode_spec_export_dir is not None and not self.episode_spec_export_dir.strip():
+            raise ValueError("episode_spec_export_dir must not be empty when set")
 
 
 def run_scene_editor(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
@@ -118,6 +123,8 @@ def run_scene_editor(settings: SceneEditorSettings, *, max_ticks: int | None = N
             keyboard_z_step=settings.keyboard_z_step,
             map_name=settings.map_name,
             scene_export_path=settings.scene_export_path,
+            export_episode_spec=settings.export_episode_spec,
+            episode_spec_export_dir=settings.episode_spec_export_dir,
             start_in_follow_mode=settings.start_in_follow_mode,
             allow_mode_toggle=settings.allow_mode_toggle,
             allow_spawn_vehicle_hotkey=settings.allow_spawn_vehicle_hotkey,
@@ -125,10 +132,18 @@ def run_scene_editor(settings: SceneEditorSettings, *, max_ticks: int | None = N
         if settings.scene_import_path is not None:
             if container.import_scene_template is None:
                 raise RuntimeError("scene import is unavailable in current runtime.")
-            imported_count = container.import_scene_template.run(settings.scene_import_path)
+            spec_store = EpisodeSpecJsonStore()
+            episode_spec = spec_store.load(settings.scene_import_path)
+            scene_import_path = spec_store.resolve_scene_json_path(
+                episode_spec=episode_spec,
+                episode_spec_path=settings.scene_import_path,
+            )
+            imported_count = container.import_scene_template.run(scene_import_path)
             print(
                 "[INFO] scene imported: "
-                f"path={settings.scene_import_path} objects={imported_count}"
+                f"episode_spec={settings.scene_import_path} "
+                f"scene={scene_import_path} "
+                f"objects={imported_count}"
             )
         return container.runtime.run(max_ticks=max_ticks)
 
@@ -146,6 +161,8 @@ def build_scene_editor_container(
     keyboard_z_step: float = 1.0,
     map_name: str,
     scene_export_path: str | None = None,
+    export_episode_spec: bool = False,
+    episode_spec_export_dir: str | None = None,
     start_in_follow_mode: bool = False,
     allow_mode_toggle: bool = True,
     allow_spawn_vehicle_hotkey: bool = True,
@@ -156,6 +173,7 @@ def build_scene_editor_container(
     follow_vehicle_topdown = None
     spawn_vehicle_at_spectator_xy = None
     spawn_barrel_at_spectator_xy = None
+    spawn_goal_at_spectator_xy = None
     export_scene = None
     import_scene_template = None
     state = EditorState(
@@ -198,6 +216,9 @@ def build_scene_editor_container(
             recorder=scene_object_recorder,
             map_name=map_name,
             export_path=scene_export_path,
+            export_episode_spec=export_episode_spec,
+            episode_spec_store=EpisodeSpecJsonStore(),
+            episode_spec_export_dir=episode_spec_export_dir,
         )
         spawn_vehicle_at_spectator_xy = SpawnVehicleAtSpectatorXY(
             spectator_camera=world_adapter,
@@ -216,6 +237,14 @@ def build_scene_editor_container(
             object_kind=SceneObjectKind.BARREL,
             recorder=scene_object_recorder,
         )
+        spawn_goal_at_spectator_xy = SpawnVehicleAtSpectatorXY(
+            spectator_camera=world_adapter,
+            ground_z_resolver=world_adapter,
+            spawn_vehicle=SpawnVehicle(spawner=CarlaVehicleSpawnerAdapter(world)),
+            role_name="goal",
+            object_kind=SceneObjectKind.GOAL_VEHICLE,
+            recorder=scene_object_recorder,
+        )
 
     runtime = RunSceneEditorLoop(
         world=world,
@@ -231,6 +260,7 @@ def build_scene_editor_container(
         follow_vehicle_topdown=follow_vehicle_topdown,
         spawn_vehicle_at_spectator_xy=spawn_vehicle_at_spectator_xy,
         spawn_barrel_at_spectator_xy=spawn_barrel_at_spectator_xy,
+        spawn_goal_at_spectator_xy=spawn_goal_at_spectator_xy,
         export_scene=export_scene,
     )
     return SceneEditorContainer(

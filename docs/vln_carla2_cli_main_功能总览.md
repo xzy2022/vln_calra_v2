@@ -271,7 +271,7 @@ python -m vln_carla2.app.cli_main spectator follow --host 127.0.0.1 --port 2000 
 ### 11.6 禁区是否进入实验
 
 ```bash
-python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sync --scene-json artifacts/scene_out.json --launch-carla --keep-carla-server
+python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --keep-carla-server
 ```
 
 运行后可使用 `+/-` 调整跟随高度；`/` 不会切换模式（锁定 Follow）。

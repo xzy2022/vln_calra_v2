@@ -94,6 +94,7 @@ def _make_loop(
     infos: list[str] | None = None,
     spawn_vehicle: _FakeSpawnAction | None = None,
     spawn_barrel: _FakeSpawnAction | None = None,
+    spawn_goal: _FakeSpawnAction | None = None,
     export_scene: _FakeExportAction | None = None,
     allow_spawn_vehicle_hotkey: bool = True,
 ) -> RunSceneEditorLoop:
@@ -113,6 +114,7 @@ def _make_loop(
         follow_vehicle_topdown=follower,
         spawn_vehicle_at_spectator_xy=spawn_vehicle,
         spawn_barrel_at_spectator_xy=spawn_barrel,
+        spawn_goal_at_spectator_xy=spawn_goal,
         export_scene=export_scene,
         info_fn=(infos.append if infos is not None else print),
         warn_fn=(warnings.append if warnings is not None else print),
@@ -340,6 +342,44 @@ def test_spawn_hotkeys_error_messages_are_distinct() -> None:
     assert len(errors) == 2
     assert errors[0].startswith("[ERROR] spawn vehicle failed:")
     assert errors[1].startswith("[ERROR] spawn barrel failed:")
+
+
+def test_spawn_goal_hotkey_triggers_once_per_pressed_snapshot() -> None:
+    spawn_goal = _FakeSpawnAction()
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[
+            EditorInputSnapshot(pressed_spawn_goal=True),
+            EditorInputSnapshot(pressed_spawn_goal=False),
+            EditorInputSnapshot(pressed_spawn_goal=True),
+        ],
+        move_spectator=_FakeMoveSpectator(),
+        spawn_goal=spawn_goal,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert spawn_goal.calls == 2
+
+
+def test_spawn_goal_hotkey_errors_are_reported() -> None:
+    errors: list[str] = []
+    spawn_goal = _FakeSpawnAction(error=RuntimeError("goal-collision"))
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[EditorInputSnapshot(pressed_spawn_goal=True)],
+        move_spectator=_FakeMoveSpectator(),
+        spawn_goal=spawn_goal,
+        errors=errors,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert spawn_goal.calls == 1
+    assert len(errors) == 1
+    assert errors[0].startswith("[ERROR] spawn goal failed:")
 
 
 def test_export_hotkey_triggers_once_per_pressed_snapshot() -> None:

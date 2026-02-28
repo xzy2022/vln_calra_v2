@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Callable, TypeVar
 
@@ -53,6 +54,8 @@ class CliWorkflowGateway(CliWorkflowPort):
             tick_sleep_seconds=request.tick_sleep_seconds,
             scene_import_path=request.scene_import,
             scene_export_path=request.scene_export_path,
+            export_episode_spec=request.export_episode_spec,
+            episode_spec_export_dir=os.getenv("EPISODE_SPEC_EXPORT_DIR"),
             follow_vehicle_id=None,
             start_in_follow_mode=False,
             allow_mode_toggle=True,
@@ -91,7 +94,7 @@ class CliWorkflowGateway(CliWorkflowPort):
 
     def run_exp_workflow(self, request: ExpRunRequest) -> ExpWorkflowExecution:
         settings = ExpRunSettings(
-            scene_json_path=request.scene_json,
+            episode_spec_path=request.episode_spec,
             host=request.host,
             port=request.port,
             timeout_seconds=request.timeout_seconds,
@@ -118,6 +121,8 @@ class CliWorkflowGateway(CliWorkflowPort):
             traveled_distance_m=result.exp_workflow_result.traveled_distance_m,
             entered_forbidden_zone=result.exp_workflow_result.entered_forbidden_zone,
             control_steps=result.exp_workflow_result.control_loop_result.executed_steps,
+            start_transform=result.start_transform,
+            goal_transform=result.goal_transform,
         )
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:

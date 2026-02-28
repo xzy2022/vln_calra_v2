@@ -73,6 +73,7 @@ class RunSceneEditorLoop:
     follow_vehicle_topdown: SceneEditorFollowVehicleProtocol | None = None
     spawn_vehicle_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
     spawn_barrel_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
+    spawn_goal_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
     export_scene: SceneEditorExportSceneProtocol | None = None
     info_fn: Callable[[str], None] = print
     warn_fn: Callable[[str], None] = print
@@ -189,6 +190,15 @@ class RunSceneEditorLoop:
                     self.spawn_barrel_at_spectator_xy.run()
                 except Exception as exc:
                     self._error(f"spawn barrel failed: {exc}")
+
+        if input_snapshot.pressed_spawn_goal:
+            if self.spawn_goal_at_spectator_xy is None:
+                self._error("spawn goal hotkey is unavailable in current runtime.")
+            else:
+                try:
+                    self.spawn_goal_at_spectator_xy.run()
+                except Exception as exc:
+                    self._error(f"spawn goal failed: {exc}")
 
     def _handle_export_hotkey(self, input_snapshot: EditorInputSnapshot) -> None:
         if not input_snapshot.pressed_export_scene:

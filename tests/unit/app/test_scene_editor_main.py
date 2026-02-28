@@ -69,6 +69,8 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
     assert container_kwargs["keyboard_z_step"] == 1.0
     assert container_kwargs["map_name"] == "Town10HD_Opt"
     assert container_kwargs["scene_export_path"] is None
+    assert container_kwargs["export_episode_spec"] is False
+    assert container_kwargs["episode_spec_export_dir"] is None
     assert container_kwargs["start_in_follow_mode"] is False
     assert container_kwargs["allow_mode_toggle"] is True
     assert container_kwargs["allow_spawn_vehicle_hotkey"] is True
@@ -117,6 +119,8 @@ def test_run_passes_async_settings_to_session_and_container(monkeypatch) -> None
     assert container_kwargs["sleep_seconds"] == 0.01
     assert container_kwargs["map_name"] == "Town10HD_Opt"
     assert container_kwargs["scene_export_path"] is None
+    assert container_kwargs["export_episode_spec"] is False
+    assert container_kwargs["episode_spec_export_dir"] is None
     assert container_kwargs["spectator_initial_z"] == 20.0
     assert container_kwargs["start_in_follow_mode"] is False
     assert container_kwargs["allow_mode_toggle"] is True
@@ -161,6 +165,8 @@ def test_run_passes_follow_vehicle_id_to_container(monkeypatch) -> None:
     assert captured["container_kwargs"]["spectator_initial_z"] == 33.0
     assert captured["container_kwargs"]["map_name"] == "Town10HD_Opt"
     assert captured["container_kwargs"]["scene_export_path"] is None
+    assert captured["container_kwargs"]["export_episode_spec"] is False
+    assert captured["container_kwargs"]["episode_spec_export_dir"] is None
     assert captured["container_kwargs"]["start_in_follow_mode"] is True
     assert captured["container_kwargs"]["allow_mode_toggle"] is False
     assert captured["container_kwargs"]["allow_spawn_vehicle_hotkey"] is False
@@ -185,6 +191,22 @@ def test_run_imports_scene_before_loop_when_scene_import_path_is_set(monkeypatch
 
     importer = _FakeImporter()
 
+    class _FakeEpisodeSpecStore:
+        def __init__(self) -> None:
+            self.load_calls: list[str] = []
+            self.resolve_calls: list[tuple[str, str]] = []
+
+        def load(self, path: str):
+            self.load_calls.append(path)
+            return object()
+
+        def resolve_scene_json_path(self, *, episode_spec, episode_spec_path: str) -> str:
+            del episode_spec
+            self.resolve_calls.append((episode_spec_path, "scene"))
+            return "fixtures/scene.json"
+
+    episode_store = _FakeEpisodeSpecStore()
+
     def fake_build_scene_editor_container(**kwargs: Any):
         captured["container_kwargs"] = kwargs
         return SimpleNamespace(runtime=runtime, import_scene_template=importer)
@@ -195,16 +217,27 @@ def test_run_imports_scene_before_loop_when_scene_import_path_is_set(monkeypatch
         "build_scene_editor_container",
         fake_build_scene_editor_container,
     )
+    monkeypatch.setattr(scene, "EpisodeSpecJsonStore", lambda: episode_store)
 
     result = scene.run_scene_editor(
         scene.SceneEditorSettings(
-            scene_import_path="fixtures/scene.json",
+            scene_import_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
             scene_export_path="exports/out.json",
+            export_episode_spec=True,
+            episode_spec_export_dir="datasets/town10hd_val_v1/episodes/ep_000001",
         ),
         max_ticks=4,
     )
 
     assert result == 2
     assert importer.calls == ["fixtures/scene.json"]
+    assert episode_store.load_calls == [
+        "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"
+    ]
     assert captured["container_kwargs"]["scene_export_path"] == "exports/out.json"
+    assert captured["container_kwargs"]["export_episode_spec"] is True
+    assert (
+        captured["container_kwargs"]["episode_spec_export_dir"]
+        == "datasets/town10hd_val_v1/episodes/ep_000001"
+    )
     assert runtime.max_ticks_calls == [4]

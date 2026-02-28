@@ -107,8 +107,8 @@ class CliApplicationService(CliApplicationUseCasePort):
         warnings = self._collect_runtime_warnings(request)
         launch_decision = _LaunchDecision(launch_report=LaunchReport())
         try:
-            # Validate scene JSON early so launch map override is deterministic.
-            self.scene_template_loader.load_map_name(request.scene_json)
+            # Validate exp input path early so launch map override is deterministic.
+            self.scene_template_loader.load_map_name(request.episode_spec)
         except Exception as exc:
             raise CliRuntimeError(f"exp workflow argument validation failed: {exc}") from exc
 

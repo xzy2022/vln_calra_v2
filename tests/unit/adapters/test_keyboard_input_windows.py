@@ -3,6 +3,7 @@ from typing import Iterable
 from vln_carla2.adapters.cli.keyboard_input_windows import (
     VK_1,
     VK_2,
+    VK_4,
     VK_ADD,
     VK_CONTROL,
     VK_DIVIDE,
@@ -11,6 +12,7 @@ from vln_carla2.adapters.cli.keyboard_input_windows import (
     VK_LCONTROL,
     VK_NUMPAD1,
     VK_NUMPAD2,
+    VK_NUMPAD4,
     VK_OEM_2,
     VK_OEM_PLUS,
     VK_RIGHT,
@@ -146,6 +148,34 @@ def test_scene_editor_keyboard_spawn_barrel_triggers_again_after_key_release() -
     assert first.pressed_spawn_barrel is True
     assert middle.pressed_spawn_barrel is False
     assert third.pressed_spawn_barrel is True
+
+
+def test_scene_editor_keyboard_spawn_goal_is_edge_triggered() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+    reader._user32 = _FakeUser32({VK_4})
+
+    first = reader.read_snapshot()
+    second = reader.read_snapshot()
+
+    assert first.pressed_spawn_goal is True
+    assert second.pressed_spawn_goal is False
+
+
+def test_scene_editor_keyboard_spawn_goal_triggers_again_after_key_release() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+
+    reader._user32 = _FakeUser32({VK_NUMPAD4})
+    first = reader.read_snapshot()
+
+    reader._user32 = _FakeUser32(set())
+    middle = reader.read_snapshot()
+
+    reader._user32 = _FakeUser32({VK_NUMPAD4})
+    third = reader.read_snapshot()
+
+    assert first.pressed_spawn_goal is True
+    assert middle.pressed_spawn_goal is False
+    assert third.pressed_spawn_goal is True
 
 
 def test_scene_editor_keyboard_export_scene_is_edge_triggered() -> None:

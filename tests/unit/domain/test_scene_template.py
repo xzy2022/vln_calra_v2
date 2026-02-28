@@ -76,3 +76,7 @@ def test_assert_map_matches_requires_same_map() -> None:
 
     with pytest.raises(ValueError, match="scene map mismatch"):
         assert_map_matches(expected_map_name="Town10HD_Opt", template_map_name="Town05")
+
+
+def test_scene_object_kind_includes_goal_vehicle_marker() -> None:
+    assert SceneObjectKind.GOAL_VEHICLE.value == "_vehicle"

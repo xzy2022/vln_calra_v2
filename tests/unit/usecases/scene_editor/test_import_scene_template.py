@@ -25,24 +25,34 @@ class _FakeSpawner:
             raise RuntimeError("spawn failed")
 
 
-def _template(*, map_name: str = "Town10HD_Opt") -> SceneTemplate:
+def _template(*, map_name: str = "Town10HD_Opt", include_goal: bool = False) -> SceneTemplate:
+    objects = [
+        SceneObject(
+            kind=SceneObjectKind.VEHICLE,
+            blueprint_id="vehicle.tesla.model3",
+            role_name="ego",
+            pose=ScenePose(x=1.0, y=2.0, z=0.1, yaw=180.0),
+        ),
+        SceneObject(
+            kind=SceneObjectKind.BARREL,
+            blueprint_id="static.prop.barrel",
+            role_name="barrel",
+            pose=ScenePose(x=3.0, y=4.0, z=0.2, yaw=0.0),
+        ),
+    ]
+    if include_goal:
+        objects.append(
+            SceneObject(
+                kind=SceneObjectKind.GOAL_VEHICLE,
+                blueprint_id="vehicle.tesla.model3",
+                role_name="goal",
+                pose=ScenePose(x=5.0, y=6.0, z=0.1, yaw=90.0),
+            )
+        )
     return SceneTemplate.from_iterable(
         schema_version=1,
         map_name=map_name,
-        objects=[
-            SceneObject(
-                kind=SceneObjectKind.VEHICLE,
-                blueprint_id="vehicle.tesla.model3",
-                role_name="ego",
-                pose=ScenePose(x=1.0, y=2.0, z=0.1, yaw=180.0),
-            ),
-            SceneObject(
-                kind=SceneObjectKind.BARREL,
-                blueprint_id="static.prop.barrel",
-                role_name="barrel",
-                pose=ScenePose(x=3.0, y=4.0, z=0.2, yaw=0.0),
-            ),
-        ],
+        objects=objects,
     )
 
 
@@ -85,4 +95,19 @@ def test_import_scene_template_stops_on_first_spawn_error_without_rollback() -> 
         usecase.run("scene.json")
 
     assert len(spawner.calls) == 2
+
+
+def test_import_scene_template_skips_goal_vehicle_kind() -> None:
+    store = _FakeStore(_template(include_goal=True))
+    spawner = _FakeSpawner()
+    usecase = ImportSceneTemplate(
+        store=store,
+        spawner=spawner,
+        expected_map_name="Town10HD_Opt",
+    )
+
+    imported = usecase.run("scene.json")
+
+    assert imported == 2
+    assert [obj.kind for obj in spawner.calls] == [SceneObjectKind.VEHICLE, SceneObjectKind.BARREL]
 

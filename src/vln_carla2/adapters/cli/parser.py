@@ -33,7 +33,7 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
     )
     scene_run.add_argument(
         "--scene-import",
-        help="Path to one scene template JSON file loaded before loop starts.",
+        help="Path to one episode_spec.json file loaded before loop starts.",
     )
     scene_run.add_argument(
         "--scene-export-path",
@@ -41,6 +41,11 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
             "Optional export path used by Ctrl+S scene export hotkey. "
             "When omitted, writes scene_export_<time>.json in current directory."
         ),
+    )
+    scene_run.add_argument(
+        "--export-episode-spec",
+        action="store_true",
+        help="Also export episode_spec.json when Ctrl+S scene export is triggered.",
     )
     scene_run.set_defaults(command_id="scene_run")
 
@@ -122,9 +127,9 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
         default_carla_exe=default_carla_exe,
     )
     exp_run.add_argument(
-        "--scene-json",
+        "--episode-spec",
         required=True,
-        help="Path to scene template JSON used for import and map selection.",
+        help="Path to episode_spec.json used to resolve scene import/map/start/goal metadata.",
     )
     exp_run.add_argument(
         "--control-target",

@@ -47,6 +47,7 @@ def to_scene_run_request(command: SceneRunCommand) -> SceneRunRequest:
         keep_carla_server=command.keep_carla_server,
         scene_import=command.scene_import,
         scene_export_path=command.scene_export_path,
+        export_episode_spec=command.export_episode_spec,
     )
 
 
@@ -97,7 +98,7 @@ def to_exp_run_request(command: ExpRunCommand) -> ExpRunRequest:
         quality_level=command.quality_level,
         with_sound=command.with_sound,
         keep_carla_server=command.keep_carla_server,
-        scene_json=command.scene_json,
+        episode_spec=command.episode_spec,
         control_target=_to_vehicle_ref(command.control_target),
         forward_distance_m=command.forward_distance_m,
         target_speed_mps=command.target_speed_mps,
@@ -159,4 +160,3 @@ def _to_spawn_request(request: AdapterSpawnVehicleRequest) -> SpawnVehicleReques
         spawn_yaw=request.spawn_yaw,
         role_name=request.role_name,
     )
-

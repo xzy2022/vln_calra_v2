@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from vln_carla2.domain.model.episode_spec import EpisodeTransform
 from vln_carla2.usecases.shared.vehicle_dto import SpawnVehicleRequest
-from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput, VehicleRefScheme
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 
 RuntimeMode = Literal["sync", "async"]
 WorkflowStrategy = Literal["serial", "parallel"]
@@ -33,6 +34,7 @@ class SceneRunRequest:
     keep_carla_server: bool
     scene_import: str | None
     scene_export_path: str | None
+    export_episode_spec: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +83,7 @@ class ExpRunRequest:
     quality_level: QualityLevel
     with_sound: bool
     keep_carla_server: bool
-    scene_json: str
+    episode_spec: str
     control_target: VehicleRefInput
     forward_distance_m: float
     target_speed_mps: float
@@ -168,6 +170,8 @@ class ExpWorkflowExecution:
     traveled_distance_m: float
     entered_forbidden_zone: bool
     control_steps: int
+    start_transform: EpisodeTransform | None = None
+    goal_transform: EpisodeTransform | None = None
 
 
 @dataclass(frozen=True, slots=True)

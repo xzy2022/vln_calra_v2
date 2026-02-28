@@ -138,6 +138,26 @@ def test_build_parser_uses_passed_carla_exe_default() -> None:
     assert args.carla_exe == "C:/CARLA/FromApp.exe"
 
 
+def test_build_parser_supports_scene_run_episode_options() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "scene",
+            "run",
+            "--scene-import",
+            "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+            "--export-episode-spec",
+        ]
+    )
+
+    assert (
+        args.scene_import
+        == "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"
+    )
+    assert args.export_episode_spec is True
+
+
 def test_build_parser_supports_operator_run_defaults() -> None:
     parser = build_parser()
 
@@ -154,9 +174,14 @@ def test_build_parser_supports_operator_run_defaults() -> None:
 def test_build_parser_supports_exp_run_defaults() -> None:
     parser = build_parser()
 
-    args = parser.parse_args(["exp", "run", "--scene-json", "artifacts/scene_out.json"])
+    args = parser.parse_args(
+        ["exp", "run", "--episode-spec", "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"]
+    )
 
-    assert args.scene_json == "artifacts/scene_out.json"
+    assert (
+        args.episode_spec
+        == "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"
+    )
     assert args.control_target == "role:ego"
     assert args.forward_distance_m == 20.0
     assert args.target_speed_mps == 5.0

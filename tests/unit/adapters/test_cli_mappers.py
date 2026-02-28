@@ -1,6 +1,10 @@
-from vln_carla2.adapters.cli.commands import ExpRunCommand, OperatorRunCommand
+from vln_carla2.adapters.cli.commands import ExpRunCommand, OperatorRunCommand, SceneRunCommand
 from vln_carla2.adapters.cli.dto import SpawnVehicleRequest, VehicleRefInput
-from vln_carla2.adapters.cli.mappers import to_exp_run_request, to_operator_run_request
+from vln_carla2.adapters.cli.mappers import (
+    to_exp_run_request,
+    to_operator_run_request,
+    to_scene_run_request,
+)
 
 
 def test_to_operator_run_request_maps_nested_dtos() -> None:
@@ -65,7 +69,7 @@ def test_to_exp_run_request_maps_control_target() -> None:
         quality_level="Epic",
         with_sound=False,
         keep_carla_server=False,
-        scene_json="artifacts/scene.json",
+        episode_spec="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
         control_target=VehicleRefInput(scheme="actor", value="42"),
         forward_distance_m=20.0,
         target_speed_mps=5.0,
@@ -76,5 +80,37 @@ def test_to_exp_run_request_maps_control_target() -> None:
 
     assert request.control_target.scheme == "actor"
     assert request.control_target.value == "42"
-    assert request.scene_json == "artifacts/scene.json"
+    assert (
+        request.episode_spec
+        == "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"
+    )
 
+
+def test_to_scene_run_request_maps_export_episode_spec_flag() -> None:
+    command = SceneRunCommand(
+        host="127.0.0.1",
+        port=2000,
+        timeout_seconds=10.0,
+        map_name="Town10HD_Opt",
+        mode="sync",
+        fixed_delta_seconds=0.05,
+        no_rendering=False,
+        tick_sleep_seconds=0.05,
+        offscreen=False,
+        launch_carla=False,
+        reuse_existing_carla=False,
+        carla_exe=None,
+        carla_startup_timeout_seconds=45.0,
+        quality_level="Epic",
+        with_sound=False,
+        keep_carla_server=False,
+        scene_import="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        scene_export_path="artifacts/scene_out.json",
+        export_episode_spec=True,
+    )
+
+    request = to_scene_run_request(command)
+
+    assert request.scene_import == command.scene_import
+    assert request.scene_export_path == command.scene_export_path
+    assert request.export_episode_spec is True

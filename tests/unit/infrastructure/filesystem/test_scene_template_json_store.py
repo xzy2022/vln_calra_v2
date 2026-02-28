@@ -49,7 +49,13 @@ def _template() -> SceneTemplate:
                 blueprint_id="vehicle.tesla.model3",
                 role_name="ego",
                 pose=ScenePose(x=1.0, y=2.0, z=0.1, yaw=180.0),
-            )
+            ),
+            SceneObject(
+                kind=SceneObjectKind.GOAL_VEHICLE,
+                blueprint_id="vehicle.tesla.model3",
+                role_name="goal",
+                pose=ScenePose(x=10.0, y=11.0, z=0.1, yaw=0.0),
+            ),
         ],
     )
 

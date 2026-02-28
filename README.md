@@ -65,3 +65,34 @@ pytest tests/unit -q
 pytest tests/integration/test_control_loop_smoke.py -m integration -q
 ```
 
+### Scene Episode Spec 工作流
+
+- Scene editor 快捷键：
+  - `1`：生成 ego 小车（`role_name=ego`, `kind=vehicle`）
+  - `2`：生成桶障碍物（`role_name=barrel`, `kind=barrel`）
+  - `4`：生成目标标记小车（`role_name=goal`, `kind=_vehicle`）
+  - `Ctrl+S`：导出 scene JSON；可选同时导出 `episode_spec.json`
+
+- 开启 episode spec 导出：
+
+```bash
+python -m vln_carla2.app.cli_main scene run --export-episode-spec --launch-carla 
+```
+
+- scene 导入现在要求传入 `episode_spec.json`：
+
+```bash
+python -m vln_carla2.app.cli_main scene run --scene-import datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json
+```
+
+- 在 `.env` 中配置 episode spec 默认导出目录：
+
+```ini
+EPISODE_SPEC_EXPORT_DIR=datasets/town10hd_val_v1/episodes/ep_000001
+```
+
+`episode_spec.json` 的导出路径优先级：
+
+1. 若显式传入 `--scene-export-path`，spec 输出到该 scene JSON 的同级目录。
+2. 否则，若配置了 `EPISODE_SPEC_EXPORT_DIR`，spec 输出到该目录。
+3. 否则，回退到 scene JSON 的实际导出目录。

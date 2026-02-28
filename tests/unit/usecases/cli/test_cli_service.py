@@ -208,6 +208,7 @@ def _scene_request(**overrides: Any) -> SceneRunRequest:
         keep_carla_server=False,
         scene_import=None,
         scene_export_path=None,
+        export_episode_spec=False,
     )
     payload.update(overrides)
     return SceneRunRequest(**payload)
@@ -231,7 +232,7 @@ def _exp_request(**overrides: Any) -> ExpRunRequest:
         quality_level="Epic",
         with_sound=False,
         keep_carla_server=False,
-        scene_json="artifacts/scene.json",
+        episode_spec="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
         control_target=VehicleRefInput(scheme="role", value="ego"),
         forward_distance_m=20.0,
         target_speed_mps=5.0,

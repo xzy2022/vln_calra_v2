@@ -213,6 +213,14 @@ def _print_exp_result(result: ExpRunResult) -> None:
         f"control_steps={execution.control_steps} "
         f"host={result.host} port={result.port}"
     )
+    if execution.start_transform is not None and execution.goal_transform is not None:
+        start = execution.start_transform
+        goal = execution.goal_transform
+        print(
+            "[INFO] episode transforms "
+            f"start=(x={start.x:.3f},y={start.y:.3f},z={start.z:.3f},yaw={start.yaw:.3f}) "
+            f"goal=(x={goal.x:.3f},y={goal.y:.3f},z={goal.z:.3f},yaw={goal.yaw:.3f})"
+        )
     status = "ENTERED" if execution.entered_forbidden_zone else "CLEAR"
     print(
         "[RESULT] forbidden_zone="

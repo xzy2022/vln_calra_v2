@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from vln_carla2.domain.model.scene_template import SceneObjectKind
 from vln_carla2.domain.services.scene_template_rules import (
     assert_map_matches,
     assert_supported_schema,
@@ -30,6 +31,9 @@ class ImportSceneTemplate:
 
         imported = 0
         for obj in template.objects:
+            # Goal markers are exported for episode metadata only, not spawned into CARLA.
+            if obj.kind is SceneObjectKind.GOAL_VEHICLE:
+                continue
             self.spawner.spawn(obj)
             imported += 1
         return imported

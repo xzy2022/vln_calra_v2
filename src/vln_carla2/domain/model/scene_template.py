@@ -12,6 +12,7 @@ class SceneObjectKind(str, Enum):
 
     VEHICLE = "vehicle"
     BARREL = "barrel"
+    GOAL_VEHICLE = "_vehicle"
 
 
 @dataclass(frozen=True, slots=True)

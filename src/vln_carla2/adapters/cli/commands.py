@@ -47,6 +47,7 @@ class SceneRunCommand:
     keep_carla_server: bool
     scene_import: str | None
     scene_export_path: str | None
+    export_episode_spec: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,7 +96,7 @@ class ExpRunCommand:
     quality_level: Literal["Low", "Epic"]
     with_sound: bool
     keep_carla_server: bool
-    scene_json: str
+    episode_spec: str
     control_target: VehicleRefInput
     forward_distance_m: float
     target_speed_mps: float
@@ -160,6 +161,7 @@ def to_scene_run_command(args: argparse.Namespace) -> SceneRunCommand:
         keep_carla_server=args.keep_carla_server,
         scene_import=args.scene_import,
         scene_export_path=args.scene_export_path,
+        export_episode_spec=args.export_episode_spec,
     )
 
 
@@ -210,7 +212,7 @@ def to_exp_run_command(args: argparse.Namespace) -> ExpRunCommand:
         quality_level=args.quality_level,
         with_sound=args.with_sound,
         keep_carla_server=args.keep_carla_server,
-        scene_json=args.scene_json,
+        episode_spec=args.episode_spec,
         control_target=parse_vehicle_ref(args.control_target),
         forward_distance_m=args.forward_distance_m,
         target_speed_mps=args.target_speed_mps,

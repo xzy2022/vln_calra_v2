@@ -19,8 +19,10 @@ VK_RCONTROL = 0xA3
 VK_S = 0x53
 VK_1 = 0x31
 VK_2 = 0x32
+VK_4 = 0x34
 VK_NUMPAD1 = 0x61
 VK_NUMPAD2 = 0x62
+VK_NUMPAD4 = 0x64
 VK_ADD = 0x6B
 VK_SUBTRACT = 0x6D
 VK_DIVIDE = 0x6F
@@ -80,6 +82,7 @@ class SceneEditorKeyboardInputWindows:
     _toggle_down_last_tick: bool = field(init=False, default=False, repr=False)
     _spawn_down_last_tick: bool = field(init=False, default=False, repr=False)
     _spawn_barrel_down_last_tick: bool = field(init=False, default=False, repr=False)
+    _spawn_goal_down_last_tick: bool = field(init=False, default=False, repr=False)
     _export_scene_down_last_tick: bool = field(init=False, default=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -90,6 +93,7 @@ class SceneEditorKeyboardInputWindows:
             self._toggle_down_last_tick = False
             self._spawn_down_last_tick = False
             self._spawn_barrel_down_last_tick = False
+            self._spawn_goal_down_last_tick = False
             self._export_scene_down_last_tick = False
             return EditorInputSnapshot.zero()
 
@@ -102,6 +106,7 @@ class SceneEditorKeyboardInputWindows:
         toggle_down = self._is_pressed(VK_OEM_2) or self._is_pressed(VK_DIVIDE)
         spawn_down = self._is_pressed(VK_1) or self._is_pressed(VK_NUMPAD1)
         spawn_barrel_down = self._is_pressed(VK_2) or self._is_pressed(VK_NUMPAD2)
+        spawn_goal_down = self._is_pressed(VK_4) or self._is_pressed(VK_NUMPAD4)
         ctrl_down = (
             self._is_pressed(VK_CONTROL)
             or self._is_pressed(VK_LCONTROL)
@@ -121,6 +126,8 @@ class SceneEditorKeyboardInputWindows:
             spawn_barrel_down and not self._spawn_barrel_down_last_tick
         )
         self._spawn_barrel_down_last_tick = spawn_barrel_down
+        pressed_spawn_goal = spawn_goal_down and not self._spawn_goal_down_last_tick
+        self._spawn_goal_down_last_tick = spawn_goal_down
         pressed_export_scene = export_scene_down and not self._export_scene_down_last_tick
         self._export_scene_down_last_tick = export_scene_down
 
@@ -131,6 +138,7 @@ class SceneEditorKeyboardInputWindows:
             pressed_toggle_mode=pressed_toggle_mode,
             pressed_spawn_vehicle=pressed_spawn_vehicle,
             pressed_spawn_barrel=pressed_spawn_barrel,
+            pressed_spawn_goal=pressed_spawn_goal,
             pressed_export_scene=pressed_export_scene,
         )
 
