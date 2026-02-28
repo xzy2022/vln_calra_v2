@@ -1,0 +1,227 @@
+"""DTOs for CLI orchestration use cases."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Literal
+
+RuntimeMode = Literal["sync", "async"]
+WorkflowStrategy = Literal["serial", "parallel"]
+QualityLevel = Literal["Low", "Epic"]
+VehicleRefScheme = Literal["actor", "role", "first"]
+
+
+@dataclass(frozen=True, slots=True)
+class VehicleRefInput:
+    """Use-case-level vehicle reference input."""
+
+    scheme: VehicleRefScheme
+    value: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SpawnVehicleRequest:
+    """Use-case-level spawn vehicle payload."""
+
+    blueprint_filter: str
+    spawn_x: float
+    spawn_y: float
+    spawn_z: float
+    spawn_yaw: float
+    role_name: str = "ego"
+
+
+@dataclass(frozen=True, slots=True)
+class SceneRunRequest:
+    host: str
+    port: int
+    timeout_seconds: float
+    map_name: str
+    mode: RuntimeMode
+    fixed_delta_seconds: float
+    no_rendering: bool
+    tick_sleep_seconds: float
+    offscreen: bool
+    launch_carla: bool
+    reuse_existing_carla: bool
+    carla_exe: str | None
+    carla_startup_timeout_seconds: float
+    quality_level: QualityLevel
+    with_sound: bool
+    keep_carla_server: bool
+    scene_import: str | None
+    scene_export_path: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorRunRequest:
+    host: str
+    port: int
+    timeout_seconds: float
+    map_name: str
+    mode: RuntimeMode
+    fixed_delta_seconds: float
+    no_rendering: bool
+    tick_sleep_seconds: float
+    offscreen: bool
+    launch_carla: bool
+    reuse_existing_carla: bool
+    carla_exe: str | None
+    carla_startup_timeout_seconds: float
+    quality_level: QualityLevel
+    with_sound: bool
+    keep_carla_server: bool
+    follow: VehicleRefInput
+    z: float
+    spawn_request: SpawnVehicleRequest
+    spawn_if_missing: bool
+    strategy: WorkflowStrategy
+    steps: int
+    target_speed_mps: float
+    operator_warmup_ticks: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExpRunRequest:
+    host: str
+    port: int
+    timeout_seconds: float
+    map_name: str
+    mode: RuntimeMode
+    fixed_delta_seconds: float
+    no_rendering: bool
+    tick_sleep_seconds: float
+    offscreen: bool
+    launch_carla: bool
+    reuse_existing_carla: bool
+    carla_exe: str | None
+    carla_startup_timeout_seconds: float
+    quality_level: QualityLevel
+    with_sound: bool
+    keep_carla_server: bool
+    scene_json: str
+    control_target: VehicleRefInput
+    forward_distance_m: float
+    target_speed_mps: float
+    max_steps: int
+
+
+@dataclass(frozen=True, slots=True)
+class VehicleListRequest:
+    host: str
+    port: int
+    timeout_seconds: float
+    map_name: str
+    mode: RuntimeMode
+    fixed_delta_seconds: float
+    no_rendering: bool
+    output_format: Literal["table", "json"]
+
+
+@dataclass(frozen=True, slots=True)
+class VehicleSpawnRequest:
+    host: str
+    port: int
+    timeout_seconds: float
+    map_name: str
+    mode: RuntimeMode
+    fixed_delta_seconds: float
+    no_rendering: bool
+    output_format: Literal["table", "json"]
+    spawn_request: SpawnVehicleRequest
+
+
+@dataclass(frozen=True, slots=True)
+class SpectatorFollowRequest:
+    host: str
+    port: int
+    timeout_seconds: float
+    map_name: str
+    mode: RuntimeMode
+    fixed_delta_seconds: float
+    no_rendering: bool
+    follow: VehicleRefInput
+    z: float
+
+
+@dataclass(frozen=True, slots=True)
+class LaunchCarlaServerRequest:
+    executable_path: str
+    rpc_port: int
+    offscreen: bool
+    no_rendering: bool
+    no_sound: bool
+    quality_level: QualityLevel
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeSessionRecord:
+    host: str
+    port: int
+    offscreen_mode: bool
+
+
+@dataclass(frozen=True, slots=True)
+class LaunchReport:
+    reused_existing_server: bool = False
+    launched_server_pid: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorWorkflowExecution:
+    strategy: WorkflowStrategy
+    vehicle_source: str
+    actor_id: int
+    operator_ticks: int
+    control_steps: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExpWorkflowExecution:
+    control_target: VehicleRefInput
+    actor_id: int
+    scene_map_name: str
+    imported_objects: int
+    forward_distance_m: float
+    traveled_distance_m: float
+    entered_forbidden_zone: bool
+    control_steps: int
+
+
+@dataclass(frozen=True, slots=True)
+class SceneRunResult:
+    mode: RuntimeMode
+    host: str
+    port: int
+    interrupted: bool = False
+    launch_report: LaunchReport = field(default_factory=LaunchReport)
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorRunResult:
+    host: str
+    port: int
+    execution: OperatorWorkflowExecution | None = None
+    interrupted: bool = False
+    launch_report: LaunchReport = field(default_factory=LaunchReport)
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ExpRunResult:
+    host: str
+    port: int
+    execution: ExpWorkflowExecution | None = None
+    interrupted: bool = False
+    launch_report: LaunchReport = field(default_factory=LaunchReport)
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class SpectatorFollowResult:
+    mode: RuntimeMode
+    host: str
+    port: int
+    skipped_offscreen: bool = False
+    interrupted: bool = False

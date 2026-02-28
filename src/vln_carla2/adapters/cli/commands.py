@@ -6,9 +6,7 @@ import argparse
 from dataclasses import dataclass
 from typing import Literal
 
-from vln_carla2.usecases.operator.models import VehicleRefInput
-from vln_carla2.usecases.operator.ports.vehicle_dto import SpawnVehicleRequest
-
+from .dto import SpawnVehicleRequest, VehicleRefInput
 from .vehicle_ref_parser import parse_vehicle_ref
 
 RuntimeMode = Literal["sync", "async"]
@@ -270,4 +268,3 @@ def _to_spawn_vehicle_request(args: argparse.Namespace) -> SpawnVehicleRequest:
         spawn_yaw=args.spawn_yaw,
         role_name=args.role_name,
     )
-

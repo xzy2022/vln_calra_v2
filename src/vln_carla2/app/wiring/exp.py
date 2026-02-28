@@ -29,7 +29,10 @@ from vln_carla2.usecases.safety.build_forbidden_zone_from_scene import BuildForb
 from vln_carla2.usecases.scene_editor.import_scene_template import ImportSceneTemplate
 
 from .control import build_control_container
-from .session import CarlaSessionConfig, managed_carla_session
+from vln_carla2.infrastructure.carla.session_runtime import (
+    CarlaSessionConfig,
+    managed_carla_session,
+)
 
 _CONTROL_TARGET_RESOLVE_RETRIES = 8
 
@@ -207,4 +210,3 @@ def _describe_current_vehicles(world: Any) -> str:
         f"(actor_id={vehicle.actor_id} type_id={vehicle.type_id} role_name={vehicle.role_name})"
         for vehicle in vehicles
     )
-

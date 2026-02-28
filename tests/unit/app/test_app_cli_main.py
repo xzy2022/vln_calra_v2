@@ -2,16 +2,24 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from vln_carla2.adapters.cli.dispatch import dispatch_args
+from vln_carla2.adapters.cli.dispatch import CliDispatchConfig, dispatch_args
 from vln_carla2.adapters.cli.parser import build_parser
 from vln_carla2.app import cli_main
+from vln_carla2.usecases.cli.dto import (
+    ExpRunResult,
+    ExpWorkflowExecution,
+    OperatorRunResult,
+    OperatorWorkflowExecution,
+    SceneRunResult,
+    SpectatorFollowResult,
+    VehicleRefInput,
+)
+from vln_carla2.usecases.cli.errors import CliRuntimeError, CliUsageError
 from vln_carla2.usecases.operator.ports.vehicle_dto import VehicleDescriptor
 
 
 @dataclass
 class _FakeApp:
-    default_carla_exe: str | None = "C:/CARLA/CarlaUE4.exe"
-    load_calls: int = 0
     scene_calls: list[Any] = field(default_factory=list)
     operator_calls: list[Any] = field(default_factory=list)
     exp_calls: list[Any] = field(default_factory=list)
@@ -19,24 +27,40 @@ class _FakeApp:
     vehicle_list_calls: list[Any] = field(default_factory=list)
     vehicle_spawn_calls: list[Any] = field(default_factory=list)
 
-    def load_env_from_dotenv(self, path: str = ".env") -> None:
-        del path
-        self.load_calls += 1
+    def run_scene(self, request: Any) -> SceneRunResult:
+        self.scene_calls.append(request)
+        return SceneRunResult(mode=request.mode, host=request.host, port=request.port)
 
-    def get_default_carla_exe(self) -> str | None:
-        return self.default_carla_exe
+    def run_operator(self, request: Any) -> OperatorRunResult:
+        self.operator_calls.append(request)
+        return OperatorRunResult(
+            host=request.host,
+            port=request.port,
+            execution=OperatorWorkflowExecution(
+                strategy="parallel",
+                vehicle_source="resolved",
+                actor_id=7,
+                operator_ticks=3,
+                control_steps=5,
+            ),
+        )
 
-    def run_scene(self, command: Any) -> int:
-        self.scene_calls.append(command)
-        return 0
-
-    def run_operator(self, command: Any) -> int:
-        self.operator_calls.append(command)
-        return 0
-
-    def run_exp(self, command: Any) -> int:
-        self.exp_calls.append(command)
-        return 0
+    def run_exp(self, request: Any) -> ExpRunResult:
+        self.exp_calls.append(request)
+        return ExpRunResult(
+            host=request.host,
+            port=request.port,
+            execution=ExpWorkflowExecution(
+                control_target=VehicleRefInput(scheme="role", value="ego"),
+                actor_id=7,
+                scene_map_name="Town10HD_Opt",
+                imported_objects=1,
+                forward_distance_m=20.0,
+                traveled_distance_m=20.5,
+                entered_forbidden_zone=False,
+                control_steps=5,
+            ),
+        )
 
     def list_vehicles(self, command: Any) -> list[VehicleDescriptor]:
         self.vehicle_list_calls.append(command)
@@ -62,20 +86,23 @@ class _FakeApp:
             z=0.3,
         )
 
-    def run_spectator_follow(self, command: Any) -> int:
-        self.spectator_calls.append(command)
-        return 0
+    def run_spectator_follow(self, request: Any) -> SpectatorFollowResult:
+        self.spectator_calls.append(request)
+        return SpectatorFollowResult(mode=request.mode, host=request.host, port=request.port)
 
 
 def test_main_delegates_to_adapter(monkeypatch) -> None:
     sentinel_app = object()
+    sentinel_config = CliDispatchConfig(default_carla_exe="C:/CARLA/FromEntry.exe")
     captured: dict[str, Any] = {}
 
     monkeypatch.setattr(cli_main, "build_cli_application", lambda: sentinel_app)
+    monkeypatch.setattr(cli_main, "build_cli_dispatch_config", lambda: sentinel_config)
 
-    def fake_run_cli(argv, app):
+    def fake_run_cli(argv, app, *, config):
         captured["argv"] = argv
         captured["app"] = app
+        captured["config"] = config
         return 7
 
     monkeypatch.setattr(cli_main, "run_cli", fake_run_cli)
@@ -85,21 +112,34 @@ def test_main_delegates_to_adapter(monkeypatch) -> None:
     assert exit_code == 7
     assert captured["argv"] == ["scene", "run"]
     assert captured["app"] is sentinel_app
+    assert captured["config"] is sentinel_config
 
 
-def test_build_parser_uses_carla_exe_from_app_default() -> None:
-    app = _FakeApp(default_carla_exe="C:/CARLA/FromApp.exe")
-    parser = build_parser(app)
+def test_build_cli_dispatch_config_loads_env_then_reads_default(monkeypatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(cli_main, "load_env_from_dotenv", lambda: calls.append("load"))
+    monkeypatch.setattr(
+        cli_main,
+        "get_default_carla_exe",
+        lambda: "C:/CARLA/FromDotenv.exe",
+    )
+
+    config = cli_main.build_cli_dispatch_config()
+
+    assert calls == ["load"]
+    assert config.default_carla_exe == "C:/CARLA/FromDotenv.exe"
+
+
+def test_build_parser_uses_passed_carla_exe_default() -> None:
+    parser = build_parser(default_carla_exe="C:/CARLA/FromApp.exe")
 
     args = parser.parse_args(["scene", "run"])
 
-    assert app.load_calls == 1
     assert args.carla_exe == "C:/CARLA/FromApp.exe"
 
 
 def test_build_parser_supports_operator_run_defaults() -> None:
-    app = _FakeApp()
-    parser = build_parser(app)
+    parser = build_parser()
 
     args = parser.parse_args(["operator", "run"])
 
@@ -112,8 +152,7 @@ def test_build_parser_supports_operator_run_defaults() -> None:
 
 
 def test_build_parser_supports_exp_run_defaults() -> None:
-    app = _FakeApp()
-    parser = build_parser(app)
+    parser = build_parser()
 
     args = parser.parse_args(["exp", "run", "--scene-json", "artifacts/scene_out.json"])
 
@@ -126,7 +165,7 @@ def test_build_parser_supports_exp_run_defaults() -> None:
 
 def test_dispatch_vehicle_list_outputs_json(capsys) -> None:
     app = _FakeApp()
-    parser = build_parser(app)
+    parser = build_parser()
     args = parser.parse_args(["vehicle", "list", "--format", "json"])
 
     exit_code = dispatch_args(args, app=app, parser=parser)
@@ -139,7 +178,7 @@ def test_dispatch_vehicle_list_outputs_json(capsys) -> None:
 
 def test_dispatch_vehicle_spawn_outputs_json(capsys) -> None:
     app = _FakeApp()
-    parser = build_parser(app)
+    parser = build_parser()
     args = parser.parse_args(["vehicle", "spawn", "--output", "json"])
 
     exit_code = dispatch_args(args, app=app, parser=parser)
@@ -152,7 +191,7 @@ def test_dispatch_vehicle_spawn_outputs_json(capsys) -> None:
 
 def test_dispatch_operator_rejects_invalid_follow_ref(capsys) -> None:
     app = _FakeApp()
-    parser = build_parser(app)
+    parser = build_parser()
     args = parser.parse_args(["operator", "run", "--follow", "bad-ref"])
 
     exit_code = dispatch_args(args, app=app, parser=parser)
@@ -165,7 +204,7 @@ def test_dispatch_operator_rejects_invalid_follow_ref(capsys) -> None:
 
 def test_dispatch_spectator_rejects_invalid_follow_ref(capsys) -> None:
     app = _FakeApp()
-    parser = build_parser(app)
+    parser = build_parser()
     args = parser.parse_args(["spectator", "follow", "--follow", "bad-ref"])
 
     exit_code = dispatch_args(args, app=app, parser=parser)
@@ -175,3 +214,36 @@ def test_dispatch_spectator_rejects_invalid_follow_ref(capsys) -> None:
     assert "Invalid vehicle ref" in stderr
     assert not app.spectator_calls
 
+
+def test_dispatch_maps_usage_error_to_exit_code_2(capsys) -> None:
+    app = _FakeApp()
+    parser = build_parser()
+    args = parser.parse_args(["scene", "run"])
+
+    def _raise_usage(_request: Any) -> None:
+        raise CliUsageError("bad usage")
+
+    app.run_scene = _raise_usage
+
+    exit_code = dispatch_args(args, app=app, parser=parser)
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "[ERROR] bad usage" in stderr
+
+
+def test_dispatch_maps_runtime_error_to_exit_code_1(capsys) -> None:
+    app = _FakeApp()
+    parser = build_parser()
+    args = parser.parse_args(["scene", "run"])
+
+    def _raise_runtime(_request: Any) -> None:
+        raise CliRuntimeError("runtime broke")
+
+    app.run_scene = _raise_runtime
+
+    exit_code = dispatch_args(args, app=app, parser=parser)
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "[ERROR] runtime broke" in stderr

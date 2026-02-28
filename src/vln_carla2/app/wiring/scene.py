@@ -28,7 +28,10 @@ from vln_carla2.usecases.scene_editor.spawn_vehicle_at_spectator_xy import (
 )
 from vln_carla2.usecases.spectator.move_spectator import MoveSpectator
 
-from .session import CarlaSessionConfig, managed_carla_session
+from vln_carla2.infrastructure.carla.session_runtime import (
+    CarlaSessionConfig,
+    managed_carla_session,
+)
 
 
 @dataclass(slots=True)
@@ -243,4 +246,3 @@ def _initialize_spectator_top_down(*, world_adapter: CarlaWorldAdapter, initial_
     transform.rotation.yaw = 0.0
     transform.rotation.roll = 0.0
     world_adapter.set_spectator_transform(transform)
-

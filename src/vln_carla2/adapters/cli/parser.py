@@ -12,7 +12,6 @@ from .commands import (
     DEFAULT_TICK_SLEEP_SECONDS,
     DEFAULT_TIMEOUT_SECONDS,
 )
-from .ports import CliApplicationPort
 
 SCENE_COMMAND = "scene"
 OPERATOR_COMMAND = "operator"
@@ -21,10 +20,7 @@ VEHICLE_COMMAND = "vehicle"
 SPECTATOR_COMMAND = "spectator"
 
 
-def build_parser(app: CliApplicationPort) -> argparse.ArgumentParser:
-    app.load_env_from_dotenv()
-    default_carla_exe = app.get_default_carla_exe()
-
+def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CARLA operator CLI.")
     root_subparsers = parser.add_subparsers(dest="resource", required=True)
 
@@ -301,4 +297,3 @@ def _add_scene_runtime_arguments(
         action="store_true",
         help="Do not terminate launched CARLA process on exit.",
     )
-

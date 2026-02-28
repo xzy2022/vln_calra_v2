@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from vln_carla2.usecases.operator.models import VehicleRefInput
+from .dto import VehicleRefInput
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,4 +63,3 @@ def _require_non_empty(raw: str, value: str, reason: str) -> None:
     if value:
         return
     raise VehicleRefParseError(raw=raw, reason=reason)
-

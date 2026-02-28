@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from typing import Sequence
+
+from vln_carla2.usecases.cli.dto import ExpRunResult, OperatorRunResult, SceneRunResult
+from vln_carla2.usecases.cli.errors import CliRuntimeError, CliUsageError
+from vln_carla2.usecases.cli.ports.inbound import CliApplicationUseCasePort
 
 from .commands import (
     to_exp_run_command,
@@ -14,15 +19,33 @@ from .commands import (
     to_vehicle_list_command,
     to_vehicle_spawn_command,
 )
+from .mappers import (
+    to_exp_run_request,
+    to_operator_run_request,
+    to_scene_run_request,
+    to_spectator_follow_request,
+    to_vehicle_list_request,
+    to_vehicle_spawn_request,
+)
 from .parser import build_parser
-from .ports import CliApplicationPort
 from .presenter import print_vehicle, print_vehicle_list
 from .vehicle_ref_parser import VehicleRefParseError
 
 
-def run_cli(argv: Sequence[str] | None, app: CliApplicationPort) -> int:
+@dataclass(frozen=True, slots=True)
+class CliDispatchConfig:
+    default_carla_exe: str | None = None
+
+
+def run_cli(
+    argv: Sequence[str] | None,
+    app: CliApplicationUseCasePort,
+    *,
+    config: CliDispatchConfig | None = None,
+) -> int:
     raw_argv = list(argv) if argv is not None else sys.argv[1:]
-    parser = build_parser(app)
+    dispatch_config = config or CliDispatchConfig()
+    parser = build_parser(default_carla_exe=dispatch_config.default_carla_exe)
     args = parser.parse_args(raw_argv)
     return dispatch_args(args, app=app, parser=parser)
 
@@ -30,7 +53,7 @@ def run_cli(argv: Sequence[str] | None, app: CliApplicationPort) -> int:
 def dispatch_args(
     args: argparse.Namespace,
     *,
-    app: CliApplicationPort,
+    app: CliApplicationUseCasePort,
     parser: argparse.ArgumentParser,
 ) -> int:
     command_id = getattr(args, "command_id", None)
@@ -40,7 +63,13 @@ def dispatch_args(
 
     if command_id == "scene_run":
         command = to_scene_run_command(args)
-        return int(app.run_scene(command))
+        request = to_scene_run_request(command)
+        try:
+            result = app.run_scene(request)
+        except (CliUsageError, CliRuntimeError) as exc:
+            return _print_cli_error(exc)
+        _print_scene_result(result)
+        return 0
 
     if command_id == "operator_run":
         try:
@@ -48,7 +77,13 @@ def dispatch_args(
         except VehicleRefParseError as exc:
             print(f"[ERROR] {exc}", file=sys.stderr)
             return 2
-        return int(app.run_operator(command))
+        request = to_operator_run_request(command)
+        try:
+            result = app.run_operator(request)
+        except (CliUsageError, CliRuntimeError) as exc:
+            return _print_cli_error(exc)
+        _print_operator_result(result)
+        return 0
 
     if command_id == "exp_run":
         try:
@@ -56,27 +91,33 @@ def dispatch_args(
         except VehicleRefParseError as exc:
             print(f"[ERROR] {exc}", file=sys.stderr)
             return 2
-        return int(app.run_exp(command))
+        request = to_exp_run_request(command)
+        try:
+            result = app.run_exp(request)
+        except (CliUsageError, CliRuntimeError) as exc:
+            return _print_cli_error(exc)
+        _print_exp_result(result)
+        return 0
 
     if command_id == "vehicle_list":
         command = to_vehicle_list_command(args)
+        request = to_vehicle_list_request(command)
         try:
-            vehicles = app.list_vehicles(command)
-            print_vehicle_list(vehicles, output_format=command.output_format)
-            return 0
-        except Exception as exc:
-            print(f"[ERROR] vehicle list failed: {exc}", file=sys.stderr)
-            return 1
+            vehicles = app.list_vehicles(request)
+        except (CliUsageError, CliRuntimeError) as exc:
+            return _print_cli_error(exc)
+        print_vehicle_list(vehicles, output_format=command.output_format)
+        return 0
 
     if command_id == "vehicle_spawn":
         command = to_vehicle_spawn_command(args)
+        request = to_vehicle_spawn_request(command)
         try:
-            vehicle = app.spawn_vehicle(command)
-            print_vehicle(vehicle, output_format=command.output_format)
-            return 0
-        except Exception as exc:
-            print(f"[ERROR] vehicle spawn failed: {exc}", file=sys.stderr)
-            return 1
+            vehicle = app.spawn_vehicle(request)
+        except (CliUsageError, CliRuntimeError) as exc:
+            return _print_cli_error(exc)
+        print_vehicle(vehicle, output_format=command.output_format)
+        return 0
 
     if command_id == "spectator_follow":
         try:
@@ -84,8 +125,127 @@ def dispatch_args(
         except VehicleRefParseError as exc:
             print(f"[ERROR] {exc}", file=sys.stderr)
             return 2
-        return int(app.run_spectator_follow(command))
+        request = to_spectator_follow_request(command)
+        try:
+            result = app.run_spectator_follow(request)
+        except (CliUsageError, CliRuntimeError) as exc:
+            return _print_cli_error(exc)
+
+        if result.skipped_offscreen:
+            print("[WARN] spectator follow skipped in offscreen mode.")
+            return 0
+        if result.interrupted:
+            print("[INFO] interrupted by Ctrl+C")
+        print(
+            f"[INFO] spectator follow stopped mode={result.mode} "
+            f"host={result.host} port={result.port}"
+        )
+        return 0
 
     parser.print_help()
     return 2
 
+
+def _print_scene_result(result: SceneRunResult) -> None:
+    _print_launch_report(
+        host=result.host,
+        port=result.port,
+        reused_existing_server=result.launch_report.reused_existing_server,
+        launched_server_pid=result.launch_report.launched_server_pid,
+    )
+    _print_warnings(result.warnings)
+    if result.interrupted:
+        print("[INFO] interrupted by Ctrl+C")
+    print(f"[INFO] runtime stopped mode={result.mode} host={result.host} port={result.port}")
+
+
+def _print_operator_result(result: OperatorRunResult) -> None:
+    _print_launch_report(
+        host=result.host,
+        port=result.port,
+        reused_existing_server=result.launch_report.reused_existing_server,
+        launched_server_pid=result.launch_report.launched_server_pid,
+    )
+    _print_warnings(result.warnings)
+    if result.interrupted:
+        print("[INFO] interrupted by Ctrl+C")
+        return
+
+    if result.execution is None:
+        raise RuntimeError("operator run result missing execution payload")
+
+    execution = result.execution
+    print(
+        "[INFO] operator workflow finished "
+        f"strategy={execution.strategy} vehicle_source={execution.vehicle_source} "
+        f"actor_id={execution.actor_id} "
+        f"operator_ticks={execution.operator_ticks} "
+        f"control_steps={execution.control_steps} "
+        f"host={result.host} port={result.port}"
+    )
+
+
+def _print_exp_result(result: ExpRunResult) -> None:
+    _print_launch_report(
+        host=result.host,
+        port=result.port,
+        reused_existing_server=result.launch_report.reused_existing_server,
+        launched_server_pid=result.launch_report.launched_server_pid,
+    )
+    _print_warnings(result.warnings)
+    if result.interrupted:
+        print("[INFO] interrupted by Ctrl+C")
+        return
+
+    if result.execution is None:
+        raise RuntimeError("exp run result missing execution payload")
+
+    execution = result.execution
+    print(
+        "[INFO] exp workflow finished "
+        f"control_target={_format_vehicle_ref(execution.control_target.scheme, execution.control_target.value)} "
+        f"actor_id={execution.actor_id} "
+        f"map_name={execution.scene_map_name} "
+        f"imported_objects={execution.imported_objects} "
+        f"forward_distance_m={execution.forward_distance_m:.3f} "
+        f"traveled_distance_m={execution.traveled_distance_m:.3f} "
+        f"entered_forbidden_zone={execution.entered_forbidden_zone} "
+        f"control_steps={execution.control_steps} "
+        f"host={result.host} port={result.port}"
+    )
+    status = "ENTERED" if execution.entered_forbidden_zone else "CLEAR"
+    print(
+        "[RESULT] forbidden_zone="
+        f"{status} entered_forbidden_zone={execution.entered_forbidden_zone}"
+    )
+
+
+def _print_launch_report(
+    *,
+    host: str,
+    port: int,
+    reused_existing_server: bool,
+    launched_server_pid: int | None,
+) -> None:
+    if reused_existing_server:
+        print(f"[INFO] reusing existing CARLA on {host}:{port}")
+    if launched_server_pid is not None:
+        print(f"[INFO] launched CARLA pid={launched_server_pid} on {host}:{port}")
+
+
+def _print_warnings(warnings: tuple[str, ...]) -> None:
+    for warning in warnings:
+        print(f"[WARN] {warning}")
+
+
+def _print_cli_error(exc: CliUsageError | CliRuntimeError) -> int:
+    print(f"[ERROR] {exc}", file=sys.stderr)
+    if isinstance(exc, CliUsageError):
+        return 2
+    return 1
+
+
+def _format_vehicle_ref(scheme: str, value: str | None) -> str:
+    if scheme == "first":
+        return "first"
+    return f"{scheme}:{value}"
