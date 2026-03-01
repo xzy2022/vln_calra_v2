@@ -50,8 +50,7 @@ main
 
 - 启动/连接 CARLA 后运行 scene editor 循环（同步/异步模式）。
 - 可选自动拉起本地 CARLA 进程。
-- 默认以 `Free` 模式运行。
-- scene run 里，follow 目标目前被固定为 None。因此 / 切换到 Follow 时会检查 follow_vehicle_id，必然告警。因为这个功能似乎不是必须的，先不深究。
+- 默认以 `Free` 模式运行；若配置 `--manual-control-target` 且能解析到车辆，则默认进入 `Follow` 并跟随该车辆。
 
 ### 3.2 专属参数
 
@@ -86,7 +85,9 @@ main
 ### 3.4 说明
 
 - `scene run` 不再支持 `--follow` 与 `--follow-vehicle-id`。
-- `scene run` 默认未绑定跟随目标；若按 `/` 尝试进入 Follow，会告警并保持 `Free` 模式。
+- 若 `--manual-control-target` 在启动时可解析到车辆，则该车辆会作为跟随目标；按 `/` 可在 `Free/Follow` 之间切换。
+- `Free -> Follow` 切换时会立即将观察者视角初始化到跟车位置；`Follow -> Free` 切换时观察者保持当前位置。
+- 若当前未绑定可用跟随目标，按 `/` 会告警并保持 `Free` 模式。
 - `scene run` 中按 `1` 失败时会输出 `[ERROR] spawn vehicle failed: ...`，按 `2` 失败时会输出 `[ERROR] spawn barrel failed: ...`，两者都不会自动重试。
 - 若按 `1` 或 `2` 时找不到可投影的道路 waypoint，会明确报错并终止本次生成。
 - 若配置 `--manual-control-target` 后按 `Y/G/H/J` 时目标车辆不存在，会输出 `[WARN] manual control unavailable: ...`，但 loop 会继续运行。
@@ -279,7 +280,7 @@ python -m vln_carla2.app.cli_main scene run --launch-carla --host 127.0.0.1 --po
 
 - `↑/↓/←/→` 平移 spectator
 - `+/-` 调整高度
-- `/` 尝试切换 Follow（若未配置跟随目标会告警并保持 Free）
+- `/` 在 `Free/Follow` 间切换（`Free -> Follow` 会立即对齐到跟车视角；无可用目标时告警并保持 Free）
 - `1` 按当前 spectator `X/Y` 生成一辆车（道路 ground z + vehicle_z_offset=0.05 偏移）
 - `2` 按当前 spectator `X/Y` 生成一个油桶（道路 ground z + vehicle_z_offset=0.02 偏移）
 - `Y/G/H/J` 手动控制 `--manual-control-target` 指定车辆

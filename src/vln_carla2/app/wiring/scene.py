@@ -246,6 +246,13 @@ def run_scene_editor(settings: SceneEditorSettings, *, max_ticks: int | None = N
                 f"scene={scene_import_path} "
                 f"objects={imported_count}"
             )
+        _bind_manual_follow_target_with_retry(
+            world=session.world,
+            runtime=container.runtime,
+            follow_vehicle_id=settings.follow_vehicle_id,
+            manual_control_target=settings.manual_control_target,
+            synchronous_mode=settings.synchronous_mode,
+        )
         try:
             return container.runtime.run(max_ticks=max_ticks)
         finally:
@@ -413,6 +420,77 @@ def _initialize_spectator_top_down(*, world_adapter: CarlaWorldAdapter, initial_
     transform.rotation.yaw = 0.0
     transform.rotation.roll = 0.0
     world_adapter.set_spectator_transform(transform)
+
+
+def _bind_manual_follow_target_with_retry(
+    *,
+    world: Any,
+    runtime: RunSceneEditorLoop,
+    follow_vehicle_id: int | None,
+    manual_control_target: VehicleRefInput | None,
+    synchronous_mode: bool,
+    max_attempts: int = 3,
+) -> None:
+    attempts = max(1, int(max_attempts))
+    for idx in range(attempts):
+        if _maybe_bind_manual_follow_target(
+            world=world,
+            runtime=runtime,
+            follow_vehicle_id=follow_vehicle_id,
+            manual_control_target=manual_control_target,
+        ):
+            return
+        if idx >= attempts - 1:
+            return
+        _advance_world_one_tick(
+            world=world,
+            synchronous_mode=synchronous_mode,
+        )
+
+
+def _maybe_bind_manual_follow_target(
+    *,
+    world: Any,
+    runtime: RunSceneEditorLoop,
+    follow_vehicle_id: int | None,
+    manual_control_target: VehicleRefInput | None,
+) -> bool:
+    if follow_vehicle_id is not None or manual_control_target is None:
+        return False
+    if not hasattr(world, "get_spectator"):
+        return False
+
+    try:
+        selected = ResolveVehicleRef(
+            resolver=CarlaVehicleResolverAdapter(world)
+        ).run(manual_control_target)
+    except Exception:
+        return False
+
+    if selected is None:
+        return False
+
+    actor_id = int(selected.actor_id)
+    world_adapter = CarlaWorldAdapter(world)
+    runtime.state.follow_vehicle_id = actor_id
+    runtime.follow_vehicle_topdown = FollowVehicleTopDown(
+        spectator_camera=world_adapter,
+        vehicle_pose=world_adapter,
+        vehicle_id=VehicleId(actor_id),
+        z=runtime.state.follow_z,
+    )
+    runtime.state.mode = EditorMode.FOLLOW
+    return True
+
+
+def _advance_world_one_tick(*, world: Any, synchronous_mode: bool) -> None:
+    try:
+        if synchronous_mode:
+            world.tick()
+            return
+        world.wait_for_tick()
+    except Exception:
+        return
 
 
 def _resolve_default_scene_tick_log_path() -> Path:
