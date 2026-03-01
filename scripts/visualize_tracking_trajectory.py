@@ -1,4 +1,4 @@
-"""Visualize planned vs. actual trajectory from tracking_metrics.json."""
+"""Visualize trajectory from tracking_metrics.json or scene_tick_log.json."""
 
 from __future__ import annotations
 
@@ -20,13 +20,16 @@ except ImportError as exc:  # pragma: no cover - runtime dependency check
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Visualize planned and actual trajectory from a tracking_metrics.json file."
+            "Visualize trajectory from tracking_metrics.json or scene_tick_log.json."
         )
     )
     parser.add_argument(
         "metrics_path",
         type=Path,
-        help="Path to tracking_metrics.json (e.g. runs/.../tracking_metrics.json).",
+        help=(
+            "Path to tracking_metrics.json or scene_tick_log.json "
+            "(e.g. runs/.../tracking_metrics.json, runs/.../scene_tick_log.json)."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -79,7 +82,9 @@ def _extract_step_series(
         value = trace.get(key)
         if value is None:
             continue
-        step = trace.get("step", idx + 1)
+        step = trace.get("step")
+        if step is None:
+            step = trace.get("frame", idx + 1)
         steps.append(int(step))
         values.append(float(value))
     if not steps:
@@ -116,6 +121,9 @@ def main() -> None:
 
     planned_xy = _extract_xy(target_trajectory, x_key="x", y_key="y")
     actual_xy = _extract_xy(tick_traces, x_key="actual_x", y_key="actual_y")
+    if len(actual_xy) == 0:
+        # scene tick log format stores world position directly as x/y.
+        actual_xy = _extract_xy(tick_traces, x_key="x", y_key="y")
     if len(planned_xy) == 0 and len(actual_xy) == 0:
         raise SystemExit("no trajectory points found in the metrics file")
 
@@ -125,7 +133,6 @@ def main() -> None:
     summary = payload.get("summary", {})
     if not isinstance(summary, dict):
         summary = {}
-    reached_goal = bool(summary.get("reached_goal", False))
     termination_reason = str(summary.get("termination_reason", "unknown"))
     final_dist = summary.get("final_distance_to_goal_m")
     map_name = str(payload.get("map_name", "unknown_map"))
@@ -192,6 +199,7 @@ def main() -> None:
     ax_xy.set_aspect("equal", adjustable="box")
     ax_xy.legend(loc="best", fontsize=9)
 
+    has_metric_series = False
     if len(nearest_dist) > 0:
         ax_metric.plot(
             step_idx,
@@ -200,6 +208,7 @@ def main() -> None:
             linewidth=1.8,
             label="Nearest distance to plan (m)",
         )
+        has_metric_series = True
     goal_steps, goal_dist = _extract_step_series(
         tick_traces, key="distance_to_goal_m"
     )
@@ -212,17 +221,44 @@ def main() -> None:
             alpha=0.9,
             label="Distance to goal (m)",
         )
+        has_metric_series = True
+
+    speed_steps, speed_values = _extract_step_series(tick_traces, key="speed_mps")
+    if not has_metric_series and len(speed_steps) > 0:
+        ax_metric.plot(
+            speed_steps,
+            speed_values,
+            color="#9467bd",
+            linewidth=1.4,
+            label="Speed (m/s)",
+        )
+        has_metric_series = True
 
     ax_metric.set_title("Tracking Metrics")
     ax_metric.set_xlabel("Step")
-    ax_metric.set_ylabel("Distance (m)")
+    ax_metric.set_ylabel("Distance (m)" if len(nearest_dist) > 0 or len(goal_steps) > 0 else "Speed (m/s)")
     ax_metric.grid(True, alpha=0.25)
-    ax_metric.legend(loc="best", fontsize=8)
+    if has_metric_series:
+        ax_metric.legend(loc="best", fontsize=8)
+    else:
+        ax_metric.text(
+            0.5,
+            0.5,
+            "No metric series available",
+            ha="center",
+            va="center",
+            transform=ax_metric.transAxes,
+            fontsize=9,
+            color="#666666",
+        )
 
     dist_text = "n/a" if final_dist is None else f"{float(final_dist):.3f}m"
+    reached_goal_text = summary.get("reached_goal")
+    if reached_goal_text is None:
+        reached_goal_text = "n/a"
     fig.suptitle(
         "Tracking vs Plan | "
-        f"map={map_name}, reached_goal={reached_goal}, "
+        f"map={map_name}, reached_goal={reached_goal_text}, "
         f"reason={termination_reason}, final_dist={dist_text}",
         fontsize=11,
     )
