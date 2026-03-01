@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -17,6 +19,7 @@ from vln_carla2.domain.model.scene_template import (
 from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 from vln_carla2.usecases.tracking.api import TrackingResult
+from vln_carla2.usecases.tracking.models import TrackingStepTrace
 
 
 def _scene_template() -> SceneTemplate:
@@ -56,6 +59,26 @@ def test_run_tracking_workflow_wires_dependencies_and_returns_result(
         final_distance_to_goal_m=0.4,
         final_yaw_error_deg=2.0,
         route_points=(),
+        step_traces=(
+            TrackingStepTrace(
+                step=1,
+                frame=100,
+                actual_x=1.0,
+                actual_y=2.0,
+                actual_yaw_deg=0.0,
+                actual_speed_mps=3.0,
+                target_x=2.0,
+                target_y=3.0,
+                target_yaw_deg=0.0,
+                distance_to_goal_m=10.0,
+                yaw_error_deg=5.0,
+                target_speed_mps=5.0,
+                lookahead_distance_m=3.0,
+                throttle=0.2,
+                brake=0.0,
+                steer=0.1,
+            ),
+        ),
     )
     episode_spec = EpisodeSpec(
         schema_version=1,
@@ -108,11 +131,34 @@ def test_run_tracking_workflow_wires_dependencies_and_returns_result(
             captured["tracking_request"] = request
             return expected_tracking_result
 
+    class FakeFollower:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["follow_init"] = kwargs
+
+        def follow_once(self) -> bool:
+            captured["follow_calls"] = captured.get("follow_calls", 0) + 1
+            return True
+
+    class FakeMetricsStore:
+        def save(self, metrics_payload: dict[str, object], path: str) -> str:
+            captured["metrics_payload"] = dict(metrics_payload)
+            captured["metrics_path_arg"] = path
+            return f"/abs/{path}"
+
+    class _FakeDateTime:
+        @staticmethod
+        def now() -> datetime:
+            return datetime(2026, 3, 1, 12, 34, 56)
+
     monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
     monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
     monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
     monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(tracking, "FollowVehicleTopDown", FakeFollower)
+    monkeypatch.setattr(tracking, "ExpMetricsJsonStore", lambda: FakeMetricsStore())
+    monkeypatch.setattr(tracking, "datetime", _FakeDateTime)
+
     def _fake_resolve_control_target_with_retry(**kwargs: Any) -> VehicleDescriptor:
         captured["resolve_kwargs"] = kwargs
         return selected_vehicle
@@ -130,6 +176,9 @@ def test_run_tracking_workflow_wires_dependencies_and_returns_result(
         control_target=VehicleRefInput(scheme="role", value="ego"),
         target_speed_mps=6.0,
         max_steps=None,
+        bind_spectator=True,
+        spectator_z=33.0,
+        enable_trajectory_log=True,
     )
 
     got = tracking.run_tracking_workflow(settings)
@@ -150,8 +199,23 @@ def test_run_tracking_workflow_wires_dependencies_and_returns_result(
     assert captured["tracking_request"].target_speed_mps == 6.0
     # max_steps defaults to episode spec when settings.max_steps is None.
     assert captured["tracking_request"].max_steps == 500
+    assert isinstance(captured["tracking_loop_init"]["clock"], tracking._FollowBoundClock)
+    assert captured["follow_init"]["z"] == 33.0
+    assert captured["follow_calls"] == 1
+    assert (
+        Path(captured["metrics_path_arg"]).as_posix()
+        == "runs/20260301_123456/results/ep_000001/tracking_metrics.json"
+    )
+    assert captured["metrics_payload"]["episode_spec_path"] == settings.episode_spec_path
+    assert captured["metrics_payload"]["summary"]["executed_steps"] == 12
+    assert len(captured["metrics_payload"]["tick_traces"]) == 1
     assert got.selected_vehicle == selected_vehicle
     assert got.imported_objects == 5
     assert got.start_transform == episode_spec.start_transform
     assert got.goal_transform == episode_spec.goal_transform
     assert got.tracking_result == expected_tracking_result
+    assert got.metrics_path is not None
+    assert (
+        Path(got.metrics_path).as_posix()
+        == "/abs/runs/20260301_123456/results/ep_000001/tracking_metrics.json"
+    )

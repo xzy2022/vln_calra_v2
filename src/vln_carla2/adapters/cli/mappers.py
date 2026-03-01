@@ -148,6 +148,10 @@ def to_tracking_run_request(command: TrackingRunCommand) -> TrackingRunRequest:
         slowdown_distance_m=command.slowdown_distance_m,
         min_slow_speed_mps=command.min_slow_speed_mps,
         steer_rate_limit_per_step=command.steer_rate_limit_per_step,
+        bind_spectator=command.bind_spectator,
+        spectator_z=command.spectator_z,
+        enable_trajectory_log=command.enable_trajectory_log,
+        trajectory_log_path=command.trajectory_log_path,
     )
 
 

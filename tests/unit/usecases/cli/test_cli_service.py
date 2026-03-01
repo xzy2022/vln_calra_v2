@@ -68,6 +68,7 @@ class _FakeWorkflows:
             final_distance_to_goal_m=0.4,
             final_yaw_error_deg=2.0,
             route_points=120,
+            metrics_path="runs/20260228_161718/results/ep_000001/tracking_metrics.json",
         )
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:
@@ -315,6 +316,10 @@ def _tracking_request(**overrides: Any) -> TrackingRunRequest:
         slowdown_distance_m=12.0,
         min_slow_speed_mps=0.8,
         steer_rate_limit_per_step=0.10,
+        bind_spectator=False,
+        spectator_z=20.0,
+        enable_trajectory_log=False,
+        trajectory_log_path=None,
     )
     payload.update(overrides)
     return TrackingRunRequest(**payload)
@@ -401,6 +406,10 @@ def test_run_tracking_returns_execution_payload() -> None:
     assert result.execution is not None
     assert result.execution.reached_goal is True
     assert result.execution.termination_reason == "goal_reached"
+    assert (
+        result.execution.metrics_path
+        == "runs/20260228_161718/results/ep_000001/tracking_metrics.json"
+    )
 
 
 def test_spectator_follow_skips_when_session_is_offscreen() -> None:

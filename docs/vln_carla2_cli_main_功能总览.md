@@ -329,7 +329,7 @@ runs/<YYYYMMDD_HHMMSS>/results/<episode目录名>/metrics.json
 ### 11.7 运行 tracking（Pure Pursuit + PID）
 
 ```bash
-python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --target-speed-mps 5.0
+python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000002/episode_spec.json --launch-carla --target-speed-mps 5.0 --bind-spectator --enable-trajectory-log
 ```
 
 命令结束后会在终端输出：

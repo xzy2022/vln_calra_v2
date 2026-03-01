@@ -82,6 +82,7 @@ class _FakeApp:
                 final_distance_to_goal_m=0.4,
                 final_yaw_error_deg=2.0,
                 route_points=120,
+                metrics_path="runs/20260228_161718/results/ep_000001/tracking_metrics.json",
             ),
         )
 
@@ -231,6 +232,10 @@ def test_build_parser_supports_tracking_run_defaults() -> None:
     assert args.target_speed_mps == 5.0
     assert args.max_steps is None
     assert args.route_step_m == 2.0
+    assert args.bind_spectator is False
+    assert args.spectator_z == 20.0
+    assert args.enable_trajectory_log is False
+    assert args.trajectory_log_path is None
 
 
 def test_dispatch_vehicle_list_outputs_json(capsys) -> None:
@@ -296,6 +301,10 @@ def test_dispatch_tracking_prints_summary(capsys) -> None:
     assert exit_code == 0
     assert "tracking workflow finished" in stdout
     assert "termination_reason=goal_reached" in stdout
+    assert (
+        "metrics saved path=runs/20260228_161718/results/ep_000001/tracking_metrics.json"
+        in stdout
+    )
     assert app.tracking_calls
 
 

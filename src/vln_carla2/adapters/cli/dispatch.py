@@ -284,6 +284,8 @@ def _print_tracking_result(result) -> None:
             f"start=(x={start.x:.3f},y={start.y:.3f},z={start.z:.3f},yaw={start.yaw:.3f}) "
             f"goal=(x={goal.x:.3f},y={goal.y:.3f},z={goal.z:.3f},yaw={goal.yaw:.3f})"
         )
+    if execution.metrics_path is not None:
+        print(f"[INFO] metrics saved path={execution.metrics_path}")
 
 
 def _print_launch_report(

@@ -101,3 +101,43 @@ class TrackingConfig:
         if self.no_progress_min_improvement_m <= 0.0:
             raise ValueError("no_progress_min_improvement_m must be > 0")
 
+
+@dataclass(frozen=True, slots=True)
+class TrackingStepTrace:
+    """One control-step trace used for trajectory evaluation."""
+
+    step: int
+    frame: int
+    actual_x: float
+    actual_y: float
+    actual_yaw_deg: float
+    actual_speed_mps: float
+    target_x: float
+    target_y: float
+    target_yaw_deg: float
+    distance_to_goal_m: float
+    yaw_error_deg: float
+    target_speed_mps: float
+    lookahead_distance_m: float
+    throttle: float
+    brake: float
+    steer: float
+
+    def __post_init__(self) -> None:
+        if self.step <= 0:
+            raise ValueError("step must be > 0")
+        object.__setattr__(self, "frame", int(self.frame))
+        object.__setattr__(self, "actual_x", float(self.actual_x))
+        object.__setattr__(self, "actual_y", float(self.actual_y))
+        object.__setattr__(self, "actual_yaw_deg", float(self.actual_yaw_deg))
+        object.__setattr__(self, "actual_speed_mps", float(self.actual_speed_mps))
+        object.__setattr__(self, "target_x", float(self.target_x))
+        object.__setattr__(self, "target_y", float(self.target_y))
+        object.__setattr__(self, "target_yaw_deg", float(self.target_yaw_deg))
+        object.__setattr__(self, "distance_to_goal_m", float(self.distance_to_goal_m))
+        object.__setattr__(self, "yaw_error_deg", float(self.yaw_error_deg))
+        object.__setattr__(self, "target_speed_mps", float(self.target_speed_mps))
+        object.__setattr__(self, "lookahead_distance_m", float(self.lookahead_distance_m))
+        object.__setattr__(self, "throttle", float(self.throttle))
+        object.__setattr__(self, "brake", float(self.brake))
+        object.__setattr__(self, "steer", float(self.steer))

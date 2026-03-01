@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 from vln_carla2.domain.model.episode_spec import EpisodeTransform
 from vln_carla2.domain.model.vehicle_id import VehicleId
@@ -22,21 +24,45 @@ from vln_carla2.infrastructure.carla.vehicle_resolver_adapter import CarlaVehicl
 from vln_carla2.infrastructure.carla.waypoint_route_planner_adapter import (
     CarlaWaypointRoutePlannerAdapter,
 )
+from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
 from vln_carla2.infrastructure.filesystem.episode_spec_json_store import EpisodeSpecJsonStore
+from vln_carla2.infrastructure.filesystem.exp_metrics_json_store import ExpMetricsJsonStore
 from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
+from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.runtime.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.scene.import_scene_template import ImportSceneTemplate
 from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 from vln_carla2.usecases.tracking.api import RunTrackingLoop, TrackingRequest, TrackingResult
+from vln_carla2.usecases.tracking.models import TrackingStepTrace
 
 from .control import StdoutLogger
 
 _CONTROL_TARGET_RESOLVE_RETRIES = 8
+_TRACKING_METRICS_FILENAME = "tracking_metrics.json"
 
 
 def _default_control_target() -> VehicleRefInput:
     return VehicleRefInput(scheme="role", value="ego")
+
+
+@dataclass(slots=True)
+class _FollowBoundClock:
+    """Clock wrapper that keeps spectator follow active every tick."""
+
+    clock: Any
+    follow_once: Callable[[], bool]
+    logger: StdoutLogger
+    vehicle_id: VehicleId
+
+    def tick(self) -> int:
+        frame = int(self.clock.tick())
+        if not self.follow_once():
+            self.logger.warn(
+                "spectator follow target missing during tracking run: "
+                f"actor_id={self.vehicle_id.value}"
+            )
+        return frame
 
 
 @dataclass(slots=True)
@@ -74,6 +100,10 @@ class TrackingRunSettings:
     steer_rate_limit_per_step: float = 0.10
     no_progress_max_steps: int = 40
     no_progress_min_improvement_m: float = 0.1
+    bind_spectator: bool = False
+    spectator_z: float = 20.0
+    enable_trajectory_log: bool = False
+    trajectory_log_path: str | None = None
 
     def __post_init__(self) -> None:
         if not self.episode_spec_path or not self.episode_spec_path.strip():
@@ -88,6 +118,10 @@ class TrackingRunSettings:
             raise ValueError("target_speed_mps must be >= 0")
         if self.max_steps is not None and self.max_steps <= 0:
             raise ValueError("max_steps must be > 0 when provided")
+        if self.spectator_z <= 0:
+            raise ValueError("spectator_z must be > 0")
+        if self.trajectory_log_path is not None and not self.trajectory_log_path.strip():
+            raise ValueError("trajectory_log_path must not be empty when set")
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +137,7 @@ class TrackingRunResult:
     start_transform: EpisodeTransform
     goal_transform: EpisodeTransform
     tracking_result: TrackingResult
+    metrics_path: str | None = None
 
 
 def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
@@ -142,12 +177,33 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
             retries=_CONTROL_TARGET_RESOLVE_RETRIES,
         )
         vehicle_id = VehicleId(selected_vehicle.actor_id)
+        logger = StdoutLogger()
+        world_adapter = CarlaWorldAdapter(session.world)
+        clock: Any = CarlaClock(session.world)
+        if settings.bind_spectator:
+            follower = FollowVehicleTopDown(
+                spectator_camera=world_adapter,
+                vehicle_pose=world_adapter,
+                vehicle_id=vehicle_id,
+                z=settings.spectator_z,
+            )
+            if not follower.follow_once():
+                raise RuntimeError(
+                    "failed to bind spectator to tracking target: "
+                    f"actor_id={vehicle_id.value}"
+                )
+            clock = _FollowBoundClock(
+                clock=clock,
+                follow_once=follower.follow_once,
+                logger=logger,
+                vehicle_id=vehicle_id,
+            )
 
         tracking_loop = RunTrackingLoop(
             state_reader=CarlaVehicleStateReader(session.world),
             motion_actuator=CarlaRawMotionActuator(session.world),
-            clock=CarlaClock(session.world),
-            logger=StdoutLogger(),
+            clock=clock,
+            logger=logger,
             route_planner=CarlaWaypointRoutePlannerAdapter(session.world),
         )
         effective_max_steps = settings.max_steps or episode_spec.max_steps
@@ -182,6 +238,23 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                 no_progress_min_improvement_m=settings.no_progress_min_improvement_m,
             )
         )
+        metrics_path: str | None = None
+        if settings.enable_trajectory_log or settings.trajectory_log_path is not None:
+            output_path = settings.trajectory_log_path or str(
+                _resolve_default_tracking_metrics_path(
+                    episode_spec_path=settings.episode_spec_path
+                )
+            )
+            payload = _build_tracking_metrics_payload(
+                episode_spec_path=settings.episode_spec_path,
+                scene_map_name=scene_template.map_name,
+                control_target=settings.control_target,
+                actor_id=selected_vehicle.actor_id,
+                start_transform=episode_spec.start_transform,
+                goal_transform=episode_spec.goal_transform,
+                tracking_result=tracking_result,
+            )
+            metrics_path = ExpMetricsJsonStore().save(payload, output_path)
 
     return TrackingRunResult(
         episode_spec_path=settings.episode_spec_path,
@@ -193,7 +266,91 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
         start_transform=episode_spec.start_transform,
         goal_transform=episode_spec.goal_transform,
         tracking_result=tracking_result,
+        metrics_path=metrics_path,
     )
+
+
+def _build_tracking_metrics_payload(
+    *,
+    episode_spec_path: str,
+    scene_map_name: str,
+    control_target: VehicleRefInput,
+    actor_id: int,
+    start_transform: EpisodeTransform,
+    goal_transform: EpisodeTransform,
+    tracking_result: TrackingResult,
+) -> dict[str, object]:
+    return {
+        "episode_spec_path": episode_spec_path,
+        "map_name": scene_map_name,
+        "actor_id": actor_id,
+        "control_target": {
+            "scheme": control_target.scheme,
+            "value": control_target.value,
+        },
+        "start_transform": _transform_to_payload(start_transform),
+        "goal_transform": _transform_to_payload(goal_transform),
+        "summary": {
+            "reached_goal": tracking_result.reached_goal,
+            "termination_reason": tracking_result.termination_reason,
+            "executed_steps": tracking_result.executed_steps,
+            "final_distance_to_goal_m": tracking_result.final_distance_to_goal_m,
+            "final_yaw_error_deg": tracking_result.final_yaw_error_deg,
+        },
+        "target_trajectory": [
+            {"x": point.x, "y": point.y, "yaw_deg": point.yaw_deg}
+            for point in tracking_result.route_points
+        ],
+        "tick_traces": [
+            _step_trace_to_payload(trace) for trace in tracking_result.step_traces
+        ],
+    }
+
+
+def _transform_to_payload(transform: EpisodeTransform) -> dict[str, float]:
+    return {
+        "x": transform.x,
+        "y": transform.y,
+        "z": transform.z,
+        "yaw": transform.yaw,
+    }
+
+
+def _step_trace_to_payload(trace: TrackingStepTrace) -> dict[str, float | int]:
+    return {
+        "step": trace.step,
+        "frame": trace.frame,
+        "actual_x": trace.actual_x,
+        "actual_y": trace.actual_y,
+        "actual_yaw_deg": trace.actual_yaw_deg,
+        "actual_speed_mps": trace.actual_speed_mps,
+        "target_x": trace.target_x,
+        "target_y": trace.target_y,
+        "target_yaw_deg": trace.target_yaw_deg,
+        "distance_to_goal_m": trace.distance_to_goal_m,
+        "yaw_error_deg": trace.yaw_error_deg,
+        "target_speed_mps": trace.target_speed_mps,
+        "lookahead_distance_m": trace.lookahead_distance_m,
+        "throttle": trace.throttle,
+        "brake": trace.brake,
+        "steer": trace.steer,
+    }
+
+
+def _resolve_default_tracking_metrics_path(*, episode_spec_path: str) -> Path:
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    episode_dir = _resolve_episode_dir_name(episode_spec_path=episode_spec_path)
+    return Path("runs") / run_id / "results" / episode_dir / _TRACKING_METRICS_FILENAME
+
+
+def _resolve_episode_dir_name(*, episode_spec_path: str) -> str:
+    episode_spec = Path(episode_spec_path)
+    parent_name = episode_spec.parent.name.strip()
+    if parent_name:
+        return parent_name
+    if episode_spec.stem:
+        return episode_spec.stem
+    return "episode"
 
 
 def _resolve_control_target_with_retry(

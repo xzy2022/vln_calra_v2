@@ -162,6 +162,10 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
         slowdown_distance_m=12.0,
         min_slow_speed_mps=0.8,
         steer_rate_limit_per_step=0.10,
+        bind_spectator=True,
+        spectator_z=25.0,
+        enable_trajectory_log=True,
+        trajectory_log_path="runs/custom/tracking_metrics.json",
     )
 
     request = to_tracking_run_request(command)
@@ -171,3 +175,7 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
     assert request.control_target.value == "ego"
     assert request.max_steps is None
     assert request.route_step_m == 2.0
+    assert request.bind_spectator is True
+    assert request.spectator_z == 25.0
+    assert request.enable_trajectory_log is True
+    assert request.trajectory_log_path == "runs/custom/tracking_metrics.json"

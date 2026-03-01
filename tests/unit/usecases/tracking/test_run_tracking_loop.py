@@ -124,6 +124,15 @@ def test_tracking_loop_reaches_goal_and_stops() -> None:
     assert result.termination_reason == "goal_reached"
     assert result.executed_steps == 1
     assert len(actuator.applied) == 1
+    assert len(result.step_traces) == 1
+    trace = result.step_traces[0]
+    assert trace.step == 1
+    assert trace.frame == 1
+    assert trace.actual_x == 0.0
+    assert trace.actual_y == 0.0
+    assert trace.target_x == 5.0
+    assert trace.target_y == 0.0
+    assert trace.distance_to_goal_m == 10.0
 
 
 def test_tracking_loop_returns_no_progress_when_distance_not_improving() -> None:
@@ -161,6 +170,7 @@ def test_tracking_loop_returns_no_progress_when_distance_not_improving() -> None
     assert result.reached_goal is False
     assert result.termination_reason == "no_progress"
     assert result.executed_steps == 2
+    assert len(result.step_traces) == 2
 
 
 def test_tracking_loop_returns_actor_missing_when_vehicle_not_found() -> None:
@@ -183,6 +193,7 @@ def test_tracking_loop_returns_actor_missing_when_vehicle_not_found() -> None:
 
     assert result.termination_reason == "actor_missing"
     assert result.route_points == ()
+    assert result.step_traces == ()
 
 
 def test_tracking_loop_returns_route_failed_when_route_planner_raises() -> None:
@@ -207,4 +218,4 @@ def test_tracking_loop_returns_route_failed_when_route_planner_raises() -> None:
 
     assert result.termination_reason == "route_failed"
     assert result.reached_goal is False
-
+    assert result.step_traces == ()

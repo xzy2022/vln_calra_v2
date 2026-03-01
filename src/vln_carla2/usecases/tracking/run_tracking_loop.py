@@ -11,7 +11,12 @@ from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.domain.model.vehicle_state import VehicleState
 from vln_carla2.domain.services.longitudinal_pid_controller import LongitudinalPidController
 from vln_carla2.domain.services.pure_pursuit_controller import PurePursuitController
-from vln_carla2.usecases.tracking.models import RoutePoint, TrackingConfig, TrackingGoal
+from vln_carla2.usecases.tracking.models import (
+    RoutePoint,
+    TrackingConfig,
+    TrackingGoal,
+    TrackingStepTrace,
+)
 from vln_carla2.usecases.tracking.ports.clock import Clock
 from vln_carla2.usecases.tracking.ports.logger import Logger
 from vln_carla2.usecases.tracking.ports.motion_actuator import MotionActuator
@@ -99,6 +104,7 @@ class TrackingResult:
     final_distance_to_goal_m: float
     final_yaw_error_deg: float
     route_points: tuple[RoutePoint, ...]
+    step_traces: tuple[TrackingStepTrace, ...] = ()
 
 
 @dataclass(slots=True)
@@ -118,6 +124,7 @@ class RunTrackingLoop:
             yaw_deg=request.goal_yaw_deg,
         )
         config = _to_tracking_config(request)
+        step_traces: list[TrackingStepTrace] = []
 
         try:
             initial_state = self.state_reader.read(request.vehicle_id)
@@ -131,6 +138,7 @@ class RunTrackingLoop:
                     state=None,
                     goal=goal,
                     route_points=(),
+                    step_traces=tuple(step_traces),
                 )
             raise
 
@@ -153,6 +161,7 @@ class RunTrackingLoop:
                 state=initial_state,
                 goal=goal,
                 route_points=(),
+                step_traces=tuple(step_traces),
             )
 
         route_points = tuple(
@@ -169,6 +178,7 @@ class RunTrackingLoop:
                 state=initial_state,
                 goal=goal,
                 route_points=(),
+                step_traces=tuple(step_traces),
             )
 
         longitudinal = LongitudinalPidController(
@@ -207,6 +217,7 @@ class RunTrackingLoop:
                         state=last_state,
                         goal=goal,
                         route_points=route_points,
+                        step_traces=tuple(step_traces),
                     )
                 raise
 
@@ -239,6 +250,7 @@ class RunTrackingLoop:
                     state=state,
                     goal=goal,
                     route_points=route_points,
+                    step_traces=tuple(step_traces),
                 )
 
             if best_distance_to_goal - distance_to_goal >= config.no_progress_min_improvement_m:
@@ -260,6 +272,7 @@ class RunTrackingLoop:
                         state=state,
                         goal=goal,
                         route_points=route_points,
+                        step_traces=tuple(step_traces),
                     )
 
             nearest_index = _nearest_route_index(
@@ -331,11 +344,32 @@ class RunTrackingLoop:
                         state=state,
                         goal=goal,
                         route_points=route_points,
+                        step_traces=tuple(step_traces),
                     )
                 raise
 
             last_frame = self.clock.tick()
             executed_steps += 1
+            step_traces.append(
+                TrackingStepTrace(
+                    step=step,
+                    frame=last_frame,
+                    actual_x=state.x,
+                    actual_y=state.y,
+                    actual_yaw_deg=state.yaw_deg,
+                    actual_speed_mps=state.speed_mps,
+                    target_x=target_point.x,
+                    target_y=target_point.y,
+                    target_yaw_deg=target_point.yaw_deg,
+                    distance_to_goal_m=distance_to_goal,
+                    yaw_error_deg=yaw_error_deg,
+                    target_speed_mps=target_speed_mps,
+                    lookahead_distance_m=lookahead_distance_m,
+                    throttle=throttle,
+                    brake=brake,
+                    steer=steer,
+                )
+            )
 
             self.logger.info(
                 "step="
@@ -353,6 +387,7 @@ class RunTrackingLoop:
             state=last_state,
             goal=goal,
             route_points=route_points,
+            step_traces=tuple(step_traces),
         )
 
 
@@ -393,6 +428,7 @@ def _terminal_result(
     state: VehicleState | None,
     goal: TrackingGoal,
     route_points: tuple[RoutePoint, ...],
+    step_traces: tuple[TrackingStepTrace, ...],
 ) -> TrackingResult:
     if state is None:
         final_distance_to_goal = float("inf")
@@ -417,6 +453,7 @@ def _terminal_result(
         final_distance_to_goal_m=final_distance_to_goal,
         final_yaw_error_deg=final_yaw_error_deg,
         route_points=route_points,
+        step_traces=step_traces,
     )
 
 

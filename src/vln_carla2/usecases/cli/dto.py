@@ -130,6 +130,10 @@ class TrackingRunRequest:
     slowdown_distance_m: float
     min_slow_speed_mps: float
     steer_rate_limit_per_step: float
+    bind_spectator: bool = False
+    spectator_z: float = 20.0
+    enable_trajectory_log: bool = False
+    trajectory_log_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +235,7 @@ class TrackingWorkflowExecution:
     route_points: int
     start_transform: EpisodeTransform | None = None
     goal_transform: EpisodeTransform | None = None
+    metrics_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

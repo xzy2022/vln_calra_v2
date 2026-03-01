@@ -210,6 +210,29 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
     tracking_run.add_argument("--slowdown-distance-m", type=float, default=12.0)
     tracking_run.add_argument("--min-slow-speed-mps", type=float, default=0.8)
     tracking_run.add_argument("--steer-rate-limit-per-step", type=float, default=0.10)
+    tracking_run.add_argument(
+        "--bind-spectator",
+        action="store_true",
+        help="Continuously bind spectator to tracked vehicle in top-down view.",
+    )
+    tracking_run.add_argument(
+        "--spectator-z",
+        type=float,
+        default=20.0,
+        help="Top-down spectator altitude when --bind-spectator is enabled.",
+    )
+    tracking_run.add_argument(
+        "--enable-trajectory-log",
+        action="store_true",
+        help="Save structured tracking trajectory evaluation log as JSON.",
+    )
+    tracking_run.add_argument(
+        "--trajectory-log-path",
+        help=(
+            "Optional output path for tracking trajectory metrics JSON. "
+            "When omitted, writes runs/<time>/results/<episode>/tracking_metrics.json."
+        ),
+    )
     tracking_run.set_defaults(command_id="tracking_run")
 
     vehicle_parser = root_subparsers.add_parser(VEHICLE_COMMAND, help="Vehicle operations.")

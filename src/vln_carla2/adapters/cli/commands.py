@@ -143,6 +143,10 @@ class TrackingRunCommand:
     slowdown_distance_m: float
     min_slow_speed_mps: float
     steer_rate_limit_per_step: float
+    bind_spectator: bool = False
+    spectator_z: float = 20.0
+    enable_trajectory_log: bool = False
+    trajectory_log_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,6 +306,10 @@ def to_tracking_run_command(args: argparse.Namespace) -> TrackingRunCommand:
         slowdown_distance_m=args.slowdown_distance_m,
         min_slow_speed_mps=args.min_slow_speed_mps,
         steer_rate_limit_per_step=args.steer_rate_limit_per_step,
+        bind_spectator=args.bind_spectator,
+        spectator_z=args.spectator_z,
+        enable_trajectory_log=args.enable_trajectory_log,
+        trajectory_log_path=args.trajectory_log_path,
     )
 
 

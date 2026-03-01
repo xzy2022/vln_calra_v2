@@ -163,6 +163,10 @@ class CliWorkflowGateway(CliWorkflowPort):
             slowdown_distance_m=request.slowdown_distance_m,
             min_slow_speed_mps=request.min_slow_speed_mps,
             steer_rate_limit_per_step=request.steer_rate_limit_per_step,
+            bind_spectator=request.bind_spectator,
+            spectator_z=request.spectator_z,
+            enable_trajectory_log=request.enable_trajectory_log,
+            trajectory_log_path=request.trajectory_log_path,
         )
         result = run_tracking_composed_workflow(settings)
         return TrackingWorkflowExecution(
@@ -181,6 +185,7 @@ class CliWorkflowGateway(CliWorkflowPort):
             route_points=len(result.tracking_result.route_points),
             start_transform=result.start_transform,
             goal_transform=result.goal_transform,
+            metrics_path=result.metrics_path,
         )
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:
