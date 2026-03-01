@@ -182,6 +182,16 @@ def test_build_parser_supports_scene_run_episode_options() -> None:
     assert args.export_episode_spec is True
 
 
+def test_build_parser_supports_scene_run_manual_defaults() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(["scene", "run"])
+
+    assert args.manual_control_target is None
+    assert args.enable_tick_log is False
+    assert args.tick_log_path is None
+
+
 def test_build_parser_supports_operator_run_defaults() -> None:
     parser = build_parser()
 
@@ -332,6 +342,35 @@ def test_dispatch_spectator_rejects_invalid_follow_ref(capsys) -> None:
     assert exit_code == 2
     assert "Invalid vehicle ref" in stderr
     assert not app.spectator_calls
+
+
+def test_dispatch_scene_rejects_invalid_manual_control_target(capsys) -> None:
+    app = _FakeApp()
+    parser = build_parser()
+    args = parser.parse_args(["scene", "run", "--manual-control-target", "bad-ref"])
+
+    exit_code = dispatch_args(args, app=app, parser=parser)
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "Invalid vehicle ref" in stderr
+    assert not app.scene_calls
+
+
+def test_dispatch_scene_enable_tick_log_without_target_maps_usage_error(capsys) -> None:
+    app = _FakeApp()
+    parser = build_parser()
+    args = parser.parse_args(["scene", "run", "--enable-tick-log"])
+
+    def _raise_usage(_request: Any) -> None:
+        raise CliUsageError("enable_tick_log requires manual_control_target")
+
+    app.run_scene = _raise_usage
+    exit_code = dispatch_args(args, app=app, parser=parser)
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "manual_control_target" in stderr
 
 
 def test_dispatch_maps_usage_error_to_exit_code_2(capsys) -> None:

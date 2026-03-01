@@ -12,6 +12,9 @@ class EditorInputSnapshot:
     held_dx: float = 0.0
     held_dy: float = 0.0
     held_dz: float = 0.0
+    held_throttle: float = 0.0
+    held_brake: float = 0.0
+    held_steer: float = 0.0
     pressed_toggle_mode: bool = False
     pressed_spawn_vehicle: bool = False
     pressed_spawn_barrel: bool = False
@@ -24,6 +27,9 @@ class EditorInputSnapshot:
             held_dx=0.0,
             held_dy=0.0,
             held_dz=0.0,
+            held_throttle=0.0,
+            held_brake=0.0,
+            held_steer=0.0,
             pressed_toggle_mode=False,
             pressed_spawn_vehicle=False,
             pressed_spawn_barrel=False,

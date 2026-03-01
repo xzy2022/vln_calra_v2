@@ -35,6 +35,9 @@ class SceneRunRequest:
     scene_import: str | None
     scene_export_path: str | None
     export_episode_spec: bool
+    manual_control_target: VehicleRefInput | None
+    enable_tick_log: bool
+    tick_log_path: str | None
 
 
 @dataclass(frozen=True, slots=True)

@@ -48,6 +48,25 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
         action="store_true",
         help="Also export episode_spec.json when Ctrl+S scene export is triggered.",
     )
+    scene_run.add_argument(
+        "--manual-control-target",
+        help=(
+            "Manual control target vehicle reference: actor:<id>, role:<name>, "
+            "first, or positive integer id."
+        ),
+    )
+    scene_run.add_argument(
+        "--enable-tick-log",
+        action="store_true",
+        help="Save per-tick state/control JSON log for manual control target vehicle.",
+    )
+    scene_run.add_argument(
+        "--tick-log-path",
+        help=(
+            "Optional output path for scene tick log JSON. "
+            "When omitted, writes runs/<time>/scene/scene_tick_log.json."
+        ),
+    )
     scene_run.set_defaults(command_id="scene_run")
 
     operator_parser = root_subparsers.add_parser(

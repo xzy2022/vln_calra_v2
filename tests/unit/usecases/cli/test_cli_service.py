@@ -227,6 +227,9 @@ def _scene_request(**overrides: Any) -> SceneRunRequest:
         scene_import=None,
         scene_export_path=None,
         export_episode_spec=False,
+        manual_control_target=None,
+        enable_tick_log=False,
+        tick_log_path=None,
     )
     payload.update(overrides)
     return SceneRunRequest(**payload)
@@ -371,6 +374,19 @@ def test_launch_success_with_keep_true_keeps_server_alive() -> None:
     assert server.terminate_calls == 0
     assert registry.records
     assert not registry.clears
+
+
+def test_run_scene_value_error_maps_to_usage_error() -> None:
+    @dataclass
+    class _ValueErrorSceneWorkflows(_FakeWorkflows):
+        def run_scene_workflow(self, request: SceneRunRequest) -> None:
+            del request
+            raise ValueError("enable_tick_log requires manual_control_target")
+
+    service = _build_service(workflows=_ValueErrorSceneWorkflows())
+
+    with pytest.raises(CliUsageError, match="manual_control_target"):
+        service.run_scene(_scene_request(enable_tick_log=True, manual_control_target=None))
 
 
 def test_exp_scene_template_validation_error_maps_to_runtime_error() -> None:

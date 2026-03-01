@@ -50,6 +50,13 @@ def to_scene_run_request(command: SceneRunCommand) -> SceneRunRequest:
         scene_import=command.scene_import,
         scene_export_path=command.scene_export_path,
         export_episode_spec=command.export_episode_spec,
+        manual_control_target=(
+            _to_vehicle_ref(command.manual_control_target)
+            if command.manual_control_target is not None
+            else None
+        ),
+        enable_tick_log=command.enable_tick_log,
+        tick_log_path=command.tick_log_path,
     )
 
 

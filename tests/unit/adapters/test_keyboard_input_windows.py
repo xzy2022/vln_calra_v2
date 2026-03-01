@@ -8,6 +8,9 @@ from vln_carla2.adapters.cli.keyboard_input_windows import (
     VK_CONTROL,
     VK_DIVIDE,
     VK_DOWN,
+    VK_G,
+    VK_H,
+    VK_J,
     VK_LEFT,
     VK_LCONTROL,
     VK_NUMPAD1,
@@ -20,6 +23,7 @@ from vln_carla2.adapters.cli.keyboard_input_windows import (
     VK_S,
     VK_SUBTRACT,
     VK_UP,
+    VK_Y,
     KeyboardInputWindows,
     SceneEditorKeyboardInputWindows,
 )
@@ -218,5 +222,37 @@ def test_scene_editor_keyboard_maps_held_axes_and_toggle() -> None:
         held_dz=0.5,
         pressed_toggle_mode=True,
     )
+
+
+def test_scene_editor_keyboard_maps_yghj_to_manual_control_axes() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+    reader._user32 = _FakeUser32({VK_Y, VK_G})
+
+    snapshot = reader.read_snapshot()
+
+    assert snapshot.held_throttle == 1.0
+    assert snapshot.held_brake == 0.0
+    assert snapshot.held_steer == -1.0
+
+
+def test_scene_editor_keyboard_yghj_conflicts_cancel_each_axis() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+    reader._user32 = _FakeUser32({VK_Y, VK_H, VK_G, VK_J})
+
+    snapshot = reader.read_snapshot()
+
+    assert snapshot.held_throttle == 0.0
+    assert snapshot.held_brake == 0.0
+    assert snapshot.held_steer == 0.0
+
+
+def test_scene_editor_keyboard_ctrl_s_triggers_export_without_brake() -> None:
+    reader = SceneEditorKeyboardInputWindows()
+    reader._user32 = _FakeUser32({VK_CONTROL, VK_S})
+
+    snapshot = reader.read_snapshot()
+
+    assert snapshot.pressed_export_scene is True
+    assert snapshot.held_brake == 0.0
 
 

@@ -66,6 +66,9 @@ main
 - `--keep-carla-server`：命令退出时不关闭由本命令启动的 CARLA
 - `--scene-import`：启动后、进入 loop 前导入场景 JSON
 - `--scene-export-path`：`Ctrl+S` 导出场景时使用的目标文件路径（可选）
+- `--manual-control-target`：手动控制目标车辆引用（`actor:<id>` / `role:<name>` / `first` / 正整数 actor id）
+- `--enable-tick-log`：开启 scene tick 轨迹/控制日志落盘
+- `--tick-log-path`：自定义 tick 日志 JSON 路径（可选）
 
 ### 3.3 运行时交互（键盘）
 
@@ -77,6 +80,7 @@ main
 - `/`：`Free` 与 `Follow` 之间切换（边沿触发，按住不重复切换）
 - `1`：按下时读取 spectator 当前 `X/Y`，将其投影到道路 waypoint，按 `spawn_z = ground_z + vehicle_offset(默认 0.05)` 生成车辆（边沿触发，按住不重复）
 - `2`：按下时读取 spectator 当前 `X/Y`，将其投影到道路 waypoint，按 `spawn_z = ground_z + vehicle_offset(默认 0.02)` 生成油桶（边沿触发，按住不重复）
+- `Y/G/H/J`：手动控制 `--manual-control-target`（`Y` 油门，`H` 刹车，`G/J` 转向）
 - `Ctrl+S`：导出当前会话内按 `1/2` 成功生成的对象为场景 JSON（边沿触发，按住不重复）
 
 ### 3.4 说明
@@ -85,10 +89,12 @@ main
 - `scene run` 默认未绑定跟随目标；若按 `/` 尝试进入 Follow，会告警并保持 `Free` 模式。
 - `scene run` 中按 `1` 失败时会输出 `[ERROR] spawn vehicle failed: ...`，按 `2` 失败时会输出 `[ERROR] spawn barrel failed: ...`，两者都不会自动重试。
 - 若按 `1` 或 `2` 时找不到可投影的道路 waypoint，会明确报错并终止本次生成。
+- 若配置 `--manual-control-target` 后按 `Y/G/H/J` 时目标车辆不存在，会输出 `[WARN] manual control unavailable: ...`，但 loop 会继续运行。
 - `Ctrl+S` 导出成功时输出 `[INFO] scene exported: <path>`；失败时输出 `[ERROR] scene export failed: ...`。
 - 若未显式传 `--scene-export-path`，默认写入当前目录：`scene_export_<YYYYMMDD_HHMMSS>.json`。
+- 若开启 `--enable-tick-log` 但未配置 `--manual-control-target`，CLI 会直接报参数错误。
+- tick 日志默认路径为 `runs/<YYYYMMDD_HHMMSS>/scene/scene_tick_log.json`，可由 `--tick-log-path` 覆盖。
 - 通过 `--scene-import <path>` 导入时，若文件 `map_name` 与当前 `--map-name` 不一致会直接报错并退出。
-
 ## 4. operator run（大闭环编排）
 
 ### 4.1 功能
@@ -276,17 +282,34 @@ python -m vln_carla2.app.cli_main scene run --launch-carla --host 127.0.0.1 --po
 - `/` 尝试切换 Follow（若未配置跟随目标会告警并保持 Free）
 - `1` 按当前 spectator `X/Y` 生成一辆车（道路 ground z + vehicle_z_offset=0.05 偏移）
 - `2` 按当前 spectator `X/Y` 生成一个油桶（道路 ground z + vehicle_z_offset=0.02 偏移）
+- `Y/G/H/J` 手动控制 `--manual-control-target` 指定车辆
 - `Ctrl+S` 导出当前会话场景到 JSON
+
+手动控制示例：
+```bash
+python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --manual-control-target role:ego --launch-carla
+```
+
+手动控制 + tick 日志示例：
+```bash
+python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --manual-control-target role:ego --enable-tick-log --tick-log-path runs/custom/scene_tick_log.json --launch-carla --scene-import datasets/town10hd_val_v1/episodes/ep_000003/episode_spec.json
+```
 
 导入：
 ```bash
-python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-import artifacts/scene_in.json  --launch-carla 
-```
-导出：
-```bash
-python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
+python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-import datasets/town10hd_val_v1/episodes/ep_000003/scene_out.json --launch-carla
 ```
 
+导出：
+```bash
+python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla
+```
+
+控制车辆
+```bash
+python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --manual-control-target role:ego --enable-tick-log --tick-log-path runs/custom/scene_tick_log.json --launch-carla --scene-import datasets/town10hd_val_v1/episodes/ep_000003/episode_spec.json
+
+```
 ### 11.3 单命令执行大闭环（按 role 发现或按需创建）
 
 ```bash
@@ -375,3 +398,6 @@ settings = SceneEditorSettings(
 )
 run_scene_editor(settings)
 ```
+
+
+

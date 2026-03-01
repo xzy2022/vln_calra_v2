@@ -60,6 +60,8 @@ class CliApplicationService(CliApplicationUseCasePort):
             self.workflows.run_scene_workflow(request)
         except KeyboardInterrupt:
             interrupted = True
+        except ValueError as exc:
+            raise CliUsageError(str(exc)) from exc
         except Exception as exc:
             raise CliRuntimeError(f"runtime failed: {exc}") from exc
         finally:

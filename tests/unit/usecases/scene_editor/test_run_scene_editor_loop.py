@@ -83,6 +83,25 @@ class _FakeExportAction:
         return self.path
 
 
+class _FakeManualControl:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.error = error
+        self.calls: list[EditorInputSnapshot] = []
+
+    def apply(self, snapshot: EditorInputSnapshot) -> None:
+        self.calls.append(snapshot)
+        if self.error is not None:
+            raise self.error
+
+
+class _FakeTickObserver:
+    def __init__(self) -> None:
+        self.frames: list[int] = []
+
+    def on_tick(self, *, frame: int) -> None:
+        self.frames.append(frame)
+
+
 def _make_loop(
     *,
     state: EditorState,
@@ -96,6 +115,8 @@ def _make_loop(
     spawn_barrel: _FakeSpawnAction | None = None,
     spawn_goal: _FakeSpawnAction | None = None,
     export_scene: _FakeExportAction | None = None,
+    manual_control: _FakeManualControl | None = None,
+    tick_observer: _FakeTickObserver | None = None,
     allow_spawn_vehicle_hotkey: bool = True,
 ) -> RunSceneEditorLoop:
     world = _FakeWorld()
@@ -116,6 +137,8 @@ def _make_loop(
         spawn_barrel_at_spectator_xy=spawn_barrel,
         spawn_goal_at_spectator_xy=spawn_goal,
         export_scene=export_scene,
+        manual_control=manual_control,
+        tick_observer=tick_observer,
         info_fn=(infos.append if infos is not None else print),
         warn_fn=(warnings.append if warnings is not None else print),
         error_fn=(errors.append if errors is not None else print),
@@ -422,5 +445,60 @@ def test_export_hotkey_errors_are_reported() -> None:
     assert export.calls == 1
     assert len(errors) == 1
     assert errors[0].startswith("[ERROR] scene export failed:")
+
+
+def test_manual_control_applies_when_manual_input_is_active() -> None:
+    manual = _FakeManualControl()
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[EditorInputSnapshot(held_throttle=1.0, held_steer=-1.0)],
+        manual_control=manual,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert len(manual.calls) == 1
+    assert manual.calls[0].held_throttle == 1.0
+    assert manual.calls[0].held_steer == -1.0
+
+
+def test_manual_control_warns_once_per_continuous_held_input_on_failure() -> None:
+    warnings: list[str] = []
+    manual = _FakeManualControl(error=RuntimeError("target missing"))
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[
+            EditorInputSnapshot(held_throttle=1.0),
+            EditorInputSnapshot(held_throttle=1.0),
+            EditorInputSnapshot(),
+            EditorInputSnapshot(held_throttle=1.0),
+        ],
+        manual_control=manual,
+        warnings=warnings,
+    )
+
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+    loop.step(with_tick=False, with_sleep=False)
+
+    assert len(manual.calls) == 3
+    assert len(warnings) == 2
+    assert warnings[0].startswith("[WARN] manual control unavailable:")
+    assert warnings[1].startswith("[WARN] manual control unavailable:")
+
+
+def test_tick_observer_is_called_after_each_tick() -> None:
+    observer = _FakeTickObserver()
+    loop = _make_loop(
+        state=EditorState(mode=EditorMode.FREE, follow_vehicle_id=None, follow_z=20.0),
+        snapshots=[EditorInputSnapshot.zero(), EditorInputSnapshot.zero()],
+        tick_observer=observer,
+    )
+
+    executed = loop.run(max_ticks=2)
+
+    assert executed == 2
+    assert observer.frames == [1, 2]
 
 

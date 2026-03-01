@@ -113,6 +113,9 @@ def test_to_scene_run_request_maps_export_episode_spec_flag() -> None:
         scene_import="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
         scene_export_path="artifacts/scene_out.json",
         export_episode_spec=True,
+        manual_control_target=VehicleRefInput(scheme="role", value="ego"),
+        enable_tick_log=True,
+        tick_log_path="runs/custom/scene_tick_log.json",
     )
 
     request = to_scene_run_request(command)
@@ -120,6 +123,11 @@ def test_to_scene_run_request_maps_export_episode_spec_flag() -> None:
     assert request.scene_import == command.scene_import
     assert request.scene_export_path == command.scene_export_path
     assert request.export_episode_spec is True
+    assert request.manual_control_target is not None
+    assert request.manual_control_target.scheme == "role"
+    assert request.manual_control_target.value == "ego"
+    assert request.enable_tick_log is True
+    assert request.tick_log_path == "runs/custom/scene_tick_log.json"
 
 
 def test_to_tracking_run_request_maps_tracking_parameters() -> None:

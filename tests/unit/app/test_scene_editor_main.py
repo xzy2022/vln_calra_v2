@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from vln_carla2.app.wiring import scene
 
 
@@ -30,7 +32,7 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
 
     def fake_build_scene_editor_container(**kwargs: Any):
         captured["container_kwargs"] = kwargs
-        return SimpleNamespace(runtime=runtime)
+        return SimpleNamespace(runtime=runtime, tick_logger=None)
 
     monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
@@ -71,6 +73,8 @@ def test_run_passes_sync_settings_to_session_and_container(monkeypatch) -> None:
     assert container_kwargs["scene_export_path"] is None
     assert container_kwargs["export_episode_spec"] is False
     assert container_kwargs["episode_spec_export_dir"] is None
+    assert container_kwargs["manual_control_target"] is None
+    assert container_kwargs["enable_tick_log"] is False
     assert container_kwargs["start_in_follow_mode"] is False
     assert container_kwargs["allow_mode_toggle"] is True
     assert container_kwargs["allow_spawn_vehicle_hotkey"] is True
@@ -88,7 +92,7 @@ def test_run_passes_async_settings_to_session_and_container(monkeypatch) -> None
 
     def fake_build_scene_editor_container(**kwargs: Any):
         captured["container_kwargs"] = kwargs
-        return SimpleNamespace(runtime=runtime)
+        return SimpleNamespace(runtime=runtime, tick_logger=None)
 
     monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
@@ -121,6 +125,8 @@ def test_run_passes_async_settings_to_session_and_container(monkeypatch) -> None
     assert container_kwargs["scene_export_path"] is None
     assert container_kwargs["export_episode_spec"] is False
     assert container_kwargs["episode_spec_export_dir"] is None
+    assert container_kwargs["manual_control_target"] is None
+    assert container_kwargs["enable_tick_log"] is False
     assert container_kwargs["spectator_initial_z"] == 20.0
     assert container_kwargs["start_in_follow_mode"] is False
     assert container_kwargs["allow_mode_toggle"] is True
@@ -138,7 +144,7 @@ def test_run_passes_follow_vehicle_id_to_container(monkeypatch) -> None:
 
     def fake_build_scene_editor_container(**kwargs: Any):
         captured["container_kwargs"] = kwargs
-        return SimpleNamespace(runtime=runtime)
+        return SimpleNamespace(runtime=runtime, tick_logger=None)
 
     monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
@@ -167,6 +173,8 @@ def test_run_passes_follow_vehicle_id_to_container(monkeypatch) -> None:
     assert captured["container_kwargs"]["scene_export_path"] is None
     assert captured["container_kwargs"]["export_episode_spec"] is False
     assert captured["container_kwargs"]["episode_spec_export_dir"] is None
+    assert captured["container_kwargs"]["manual_control_target"] is None
+    assert captured["container_kwargs"]["enable_tick_log"] is False
     assert captured["container_kwargs"]["start_in_follow_mode"] is True
     assert captured["container_kwargs"]["allow_mode_toggle"] is False
     assert captured["container_kwargs"]["allow_spawn_vehicle_hotkey"] is False
@@ -209,7 +217,11 @@ def test_run_imports_scene_before_loop_when_scene_import_path_is_set(monkeypatch
 
     def fake_build_scene_editor_container(**kwargs: Any):
         captured["container_kwargs"] = kwargs
-        return SimpleNamespace(runtime=runtime, import_scene_template=importer)
+        return SimpleNamespace(
+            runtime=runtime,
+            import_scene_template=importer,
+            tick_logger=None,
+        )
 
     monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
     monkeypatch.setattr(
@@ -240,4 +252,51 @@ def test_run_imports_scene_before_loop_when_scene_import_path_is_set(monkeypatch
         captured["container_kwargs"]["episode_spec_export_dir"]
         == "datasets/town10hd_val_v1/episodes/ep_000001"
     )
+    assert captured["container_kwargs"]["manual_control_target"] is None
+    assert captured["container_kwargs"]["enable_tick_log"] is False
     assert runtime.max_ticks_calls == [4]
+
+
+def test_run_saves_tick_log_in_finally_when_runtime_is_interrupted(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    @contextmanager
+    def fake_managed_session(_config: scene.CarlaSessionConfig):
+        yield SimpleNamespace(world=object())
+
+    class _InterruptedRuntime:
+        def run(self, *, max_ticks: int | None = None) -> int:
+            del max_ticks
+            raise KeyboardInterrupt
+
+    class _FakeTickLogger:
+        def save(self, path: str) -> str:
+            captured["save_path"] = path
+            return "/abs/runs/custom/scene_tick_log.json"
+
+    def fake_build_scene_editor_container(**kwargs: Any):
+        captured["container_kwargs"] = kwargs
+        return SimpleNamespace(
+            runtime=_InterruptedRuntime(),
+            import_scene_template=None,
+            tick_logger=_FakeTickLogger(),
+        )
+
+    monkeypatch.setattr(scene, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(scene, "build_scene_editor_container", fake_build_scene_editor_container)
+
+    with pytest.raises(KeyboardInterrupt):
+        scene.run_scene_editor(
+            scene.SceneEditorSettings(
+                manual_control_target=scene.VehicleRefInput(scheme="role", value="ego"),
+                enable_tick_log=True,
+                tick_log_path="runs/custom/scene_tick_log.json",
+            )
+        )
+
+    assert captured["container_kwargs"]["manual_control_target"] == scene.VehicleRefInput(
+        scheme="role",
+        value="ego",
+    )
+    assert captured["container_kwargs"]["enable_tick_log"] is True
+    assert captured["save_path"] == "runs/custom/scene_tick_log.json"

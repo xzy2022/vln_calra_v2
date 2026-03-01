@@ -62,6 +62,13 @@ class CliWorkflowGateway(CliWorkflowPort):
             scene_export_path=request.scene_export_path,
             export_episode_spec=request.export_episode_spec,
             episode_spec_export_dir=os.getenv("EPISODE_SPEC_EXPORT_DIR"),
+            manual_control_target=(
+                _to_operator_vehicle_ref(request.manual_control_target)
+                if request.manual_control_target is not None
+                else None
+            ),
+            enable_tick_log=request.enable_tick_log,
+            tick_log_path=request.tick_log_path,
             follow_vehicle_id=None,
             start_in_follow_mode=False,
             allow_mode_toggle=True,

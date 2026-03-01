@@ -16,7 +16,11 @@ VK_DOWN = 0x28
 VK_CONTROL = 0x11
 VK_LCONTROL = 0xA2
 VK_RCONTROL = 0xA3
+VK_G = 0x47
+VK_H = 0x48
+VK_J = 0x4A
 VK_S = 0x53
+VK_Y = 0x59
 VK_1 = 0x31
 VK_2 = 0x32
 VK_4 = 0x34
@@ -107,16 +111,24 @@ class SceneEditorKeyboardInputWindows:
         spawn_down = self._is_pressed(VK_1) or self._is_pressed(VK_NUMPAD1)
         spawn_barrel_down = self._is_pressed(VK_2) or self._is_pressed(VK_NUMPAD2)
         spawn_goal_down = self._is_pressed(VK_4) or self._is_pressed(VK_NUMPAD4)
+        y_down = self._is_pressed(VK_Y)
+        h_down = self._is_pressed(VK_H)
+        g_down = self._is_pressed(VK_G)
+        j_down = self._is_pressed(VK_J)
+        s_down_raw = self._is_pressed(VK_S)
         ctrl_down = (
             self._is_pressed(VK_CONTROL)
             or self._is_pressed(VK_LCONTROL)
             or self._is_pressed(VK_RCONTROL)
         )
-        export_scene_down = ctrl_down and self._is_pressed(VK_S)
+        export_scene_down = ctrl_down and s_down_raw
 
         held_dx = self.xy_step if up and not down else -self.xy_step if down and not up else 0.0
         held_dy = self.xy_step if right and not left else -self.xy_step if left and not right else 0.0
         held_dz = self.z_step if plus and not minus else -self.z_step if minus and not plus else 0.0
+        held_throttle = 1.0 if y_down and not h_down else 0.0
+        held_brake = 1.0 if h_down and not y_down else 0.0
+        held_steer = 1.0 if j_down and not g_down else -1.0 if g_down and not j_down else 0.0
 
         pressed_toggle_mode = toggle_down and not self._toggle_down_last_tick
         self._toggle_down_last_tick = toggle_down
@@ -135,6 +147,9 @@ class SceneEditorKeyboardInputWindows:
             held_dx=held_dx,
             held_dy=held_dy,
             held_dz=held_dz,
+            held_throttle=held_throttle,
+            held_brake=held_brake,
+            held_steer=held_steer,
             pressed_toggle_mode=pressed_toggle_mode,
             pressed_spawn_vehicle=pressed_spawn_vehicle,
             pressed_spawn_barrel=pressed_spawn_barrel,

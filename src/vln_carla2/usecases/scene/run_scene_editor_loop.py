@@ -49,6 +49,20 @@ class SceneEditorExportSceneProtocol(Protocol):
         ...
 
 
+class SceneEditorManualControlProtocol(Protocol):
+    """Apply one manual control command based on current input snapshot."""
+
+    def apply(self, snapshot: EditorInputSnapshot) -> None:
+        ...
+
+
+class SceneEditorTickObserverProtocol(Protocol):
+    """Observe one completed world tick for optional side effects."""
+
+    def on_tick(self, *, frame: int) -> None:
+        ...
+
+
 @dataclass(slots=True)
 class RunSceneEditorLoop:
     """
@@ -75,10 +89,17 @@ class RunSceneEditorLoop:
     spawn_barrel_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
     spawn_goal_at_spectator_xy: SceneEditorSpawnVehicleProtocol | None = None
     export_scene: SceneEditorExportSceneProtocol | None = None
+    manual_control: SceneEditorManualControlProtocol | None = None
+    tick_observer: SceneEditorTickObserverProtocol | None = None
     info_fn: Callable[[str], None] = print
     warn_fn: Callable[[str], None] = print
     error_fn: Callable[[str], None] = print
     _warned_missing_follow_runtime: bool = field(
+        init=False,
+        default=False,
+        repr=False,
+    )
+    _warned_manual_control_error: bool = field(
         init=False,
         default=False,
         repr=False,
@@ -101,11 +122,13 @@ class RunSceneEditorLoop:
             self._handle_free_mode(input_snapshot)
         else:
             self._handle_follow_mode(input_snapshot)
+        self._handle_manual_control(input_snapshot)
 
         if not with_tick:
             return None
 
         frame = self._tick_once()
+        self._notify_tick_observer(frame)
         if self.synchronous_mode and with_sleep:
             time.sleep(self.sleep_seconds)
         return frame
@@ -211,6 +234,35 @@ class RunSceneEditorLoop:
             self._info(f"scene exported: {path}")
         except Exception as exc:
             self._error(f"scene export failed: {exc}")
+
+    def _handle_manual_control(self, input_snapshot: EditorInputSnapshot) -> None:
+        active = self._manual_control_active(input_snapshot)
+        if not active:
+            self._warned_manual_control_error = False
+            return
+        if self.manual_control is None:
+            return
+
+        try:
+            self.manual_control.apply(input_snapshot)
+            self._warned_manual_control_error = False
+        except Exception as exc:
+            if self._warned_manual_control_error:
+                return
+            self._warn(f"manual control unavailable: {exc}")
+            self._warned_manual_control_error = True
+
+    def _manual_control_active(self, input_snapshot: EditorInputSnapshot) -> bool:
+        return (
+            input_snapshot.held_throttle > 0.0
+            or input_snapshot.held_brake > 0.0
+            or abs(input_snapshot.held_steer) > 0.0
+        )
+
+    def _notify_tick_observer(self, frame: int) -> None:
+        if self.tick_observer is None:
+            return
+        self.tick_observer.on_tick(frame=frame)
 
     def _warn_once_missing_follow_runtime(self) -> None:
         if self._warned_missing_follow_runtime:

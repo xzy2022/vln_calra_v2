@@ -64,7 +64,11 @@ def dispatch_args(
         return 2
 
     if command_id == "scene_run":
-        command = to_scene_run_command(args)
+        try:
+            command = to_scene_run_command(args)
+        except VehicleRefParseError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 2
         request = to_scene_run_request(command)
         try:
             result = app.run_scene(request)

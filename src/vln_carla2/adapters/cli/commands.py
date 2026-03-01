@@ -48,6 +48,9 @@ class SceneRunCommand:
     scene_import: str | None
     scene_export_path: str | None
     export_episode_spec: bool
+    manual_control_target: VehicleRefInput | None
+    enable_tick_log: bool
+    tick_log_path: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +211,13 @@ def to_scene_run_command(args: argparse.Namespace) -> SceneRunCommand:
         scene_import=args.scene_import,
         scene_export_path=args.scene_export_path,
         export_episode_spec=args.export_episode_spec,
+        manual_control_target=(
+            parse_vehicle_ref(args.manual_control_target)
+            if args.manual_control_target is not None
+            else None
+        ),
+        enable_tick_log=args.enable_tick_log,
+        tick_log_path=args.tick_log_path,
     )
 
 

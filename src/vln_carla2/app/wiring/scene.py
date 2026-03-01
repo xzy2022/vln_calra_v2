@@ -2,23 +2,32 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from vln_carla2.adapters.cli.keyboard_input_windows import SceneEditorKeyboardInputWindows
 from vln_carla2.domain.model.scene_template import SceneObjectKind
+from vln_carla2.domain.model.simple_command import ControlCommand
 from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.infrastructure.carla.actuator_raw import CarlaRawMotionActuator
 from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
     CarlaSceneObjectSpawnerAdapter,
 )
+from vln_carla2.infrastructure.carla.state_reader import CarlaVehicleStateReader
+from vln_carla2.infrastructure.carla.vehicle_resolver_adapter import CarlaVehicleResolverAdapter
 from vln_carla2.infrastructure.carla.vehicle_spawner_adapter import CarlaVehicleSpawnerAdapter
 from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
 from vln_carla2.infrastructure.filesystem.episode_spec_json_store import EpisodeSpecJsonStore
+from vln_carla2.infrastructure.filesystem.exp_metrics_json_store import ExpMetricsJsonStore
 from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
 from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
+from vln_carla2.usecases.runtime.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.runtime.spawn_vehicle import SpawnVehicle
 from vln_carla2.usecases.scene.export_scene_template import ExportSceneTemplate
 from vln_carla2.usecases.scene.import_scene_template import ImportSceneTemplate
+from vln_carla2.usecases.scene.input_snapshot import EditorInputSnapshot
 from vln_carla2.usecases.scene.models import EditorMode, EditorState
 from vln_carla2.usecases.scene.record_spawned_scene_object import (
     RecordSpawnedSceneObject,
@@ -28,11 +37,90 @@ from vln_carla2.usecases.scene.spawn_vehicle_at_spectator_xy import (
     SpawnVehicleAtSpectatorXY,
 )
 from vln_carla2.usecases.runtime.move_spectator import MoveSpectator
+from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 
 from vln_carla2.infrastructure.carla.session_runtime import (
     CarlaSessionConfig,
     managed_carla_session,
 )
+
+_SCENE_TICK_LOG_FILENAME = "scene_tick_log.json"
+
+
+@dataclass(slots=True)
+class _SceneManualControl:
+    control_target: VehicleRefInput
+    resolver: ResolveVehicleRef
+    motion_actuator: CarlaRawMotionActuator
+
+    def apply(self, snapshot: EditorInputSnapshot) -> None:
+        selected = self.resolver.run(self.control_target)
+        if selected is None:
+            raise RuntimeError(
+                "manual control target not found: "
+                f"{_format_vehicle_ref(self.control_target)}"
+            )
+        self.motion_actuator.apply(
+            VehicleId(selected.actor_id),
+            ControlCommand(
+                throttle=snapshot.held_throttle,
+                brake=snapshot.held_brake,
+                steer=snapshot.held_steer,
+            ),
+        )
+
+
+@dataclass(slots=True)
+class _SceneTickLogger:
+    map_name: str
+    control_target: VehicleRefInput
+    resolver: ResolveVehicleRef
+    state_reader: CarlaVehicleStateReader
+    world: Any
+    tick_traces: list[dict[str, object]] = field(default_factory=list)
+
+    def on_tick(self, *, frame: int) -> None:
+        selected = self.resolver.run(self.control_target)
+        if selected is None:
+            return
+        actor_id = int(selected.actor_id)
+        actor = self.world.get_actor(actor_id)
+        if actor is None:
+            return
+        try:
+            state = self.state_reader.read(VehicleId(actor_id))
+        except RuntimeError:
+            return
+        control = actor.get_control()
+        self.tick_traces.append(
+            {
+                "frame": int(frame),
+                "actor_id": actor_id,
+                "x": state.x,
+                "y": state.y,
+                "z": state.z,
+                "yaw_deg": state.yaw_deg,
+                "vx": state.vx,
+                "vy": state.vy,
+                "vz": state.vz,
+                "speed_mps": state.speed_mps,
+                "throttle": float(getattr(control, "throttle", 0.0)),
+                "brake": float(getattr(control, "brake", 0.0)),
+                "steer": float(getattr(control, "steer", 0.0)),
+            }
+        )
+
+    def save(self, path: str) -> str:
+        payload = {
+            "map_name": self.map_name,
+            "control_target": {
+                "scheme": self.control_target.scheme,
+                "value": self.control_target.value,
+            },
+            "summary": {"ticks_recorded": len(self.tick_traces)},
+            "tick_traces": list(self.tick_traces),
+        }
+        return ExpMetricsJsonStore().save(payload, path)
 
 
 @dataclass(slots=True)
@@ -41,6 +129,7 @@ class SceneEditorContainer:
 
     runtime: RunSceneEditorLoop
     import_scene_template: ImportSceneTemplate | None = None
+    tick_logger: _SceneTickLogger | None = None
 
 
 @dataclass(slots=True)
@@ -66,6 +155,9 @@ class SceneEditorSettings:
     scene_export_path: str | None = None
     export_episode_spec: bool = False
     episode_spec_export_dir: str | None = None
+    manual_control_target: VehicleRefInput | None = None
+    enable_tick_log: bool = False
+    tick_log_path: str | None = None
     start_in_follow_mode: bool = False
     allow_mode_toggle: bool = True
     allow_spawn_vehicle_hotkey: bool = True
@@ -95,6 +187,13 @@ class SceneEditorSettings:
             raise ValueError("scene_export_path must not be empty when set")
         if self.episode_spec_export_dir is not None and not self.episode_spec_export_dir.strip():
             raise ValueError("episode_spec_export_dir must not be empty when set")
+        if self.tick_log_path is not None and not self.tick_log_path.strip():
+            raise ValueError("tick_log_path must not be empty when set")
+        if self.enable_tick_log and self.manual_control_target is None:
+            raise ValueError(
+                "enable_tick_log requires manual_control_target "
+                "(set --manual-control-target)."
+            )
 
 
 def run_scene_editor(settings: SceneEditorSettings, *, max_ticks: int | None = None) -> int:
@@ -125,6 +224,8 @@ def run_scene_editor(settings: SceneEditorSettings, *, max_ticks: int | None = N
             scene_export_path=settings.scene_export_path,
             export_episode_spec=settings.export_episode_spec,
             episode_spec_export_dir=settings.episode_spec_export_dir,
+            manual_control_target=settings.manual_control_target,
+            enable_tick_log=settings.enable_tick_log,
             start_in_follow_mode=settings.start_in_follow_mode,
             allow_mode_toggle=settings.allow_mode_toggle,
             allow_spawn_vehicle_hotkey=settings.allow_spawn_vehicle_hotkey,
@@ -145,7 +246,16 @@ def run_scene_editor(settings: SceneEditorSettings, *, max_ticks: int | None = N
                 f"scene={scene_import_path} "
                 f"objects={imported_count}"
             )
-        return container.runtime.run(max_ticks=max_ticks)
+        try:
+            return container.runtime.run(max_ticks=max_ticks)
+        finally:
+            if container.tick_logger is not None:
+                output_path = settings.tick_log_path or str(_resolve_default_scene_tick_log_path())
+                try:
+                    saved_path = container.tick_logger.save(output_path)
+                    print(f"[INFO] tick log saved path={saved_path}")
+                except Exception as exc:
+                    print(f"[WARN] failed to save tick log: {exc}")
 
 
 def build_scene_editor_container(
@@ -163,11 +273,18 @@ def build_scene_editor_container(
     scene_export_path: str | None = None,
     export_episode_spec: bool = False,
     episode_spec_export_dir: str | None = None,
+    manual_control_target: VehicleRefInput | None = None,
+    enable_tick_log: bool = False,
     start_in_follow_mode: bool = False,
     allow_mode_toggle: bool = True,
     allow_spawn_vehicle_hotkey: bool = True,
 ) -> SceneEditorContainer:
     """Compose scene-editor dependencies and produce runtime."""
+    if enable_tick_log and manual_control_target is None:
+        raise ValueError(
+            "enable_tick_log requires manual_control_target (set --manual-control-target)."
+        )
+
     keyboard_input = None
     move_spectator = None
     follow_vehicle_topdown = None
@@ -176,6 +293,8 @@ def build_scene_editor_container(
     spawn_goal_at_spectator_xy = None
     export_scene = None
     import_scene_template = None
+    manual_control = None
+    tick_logger = None
     state = EditorState(
         mode=EditorMode.FOLLOW if start_in_follow_mode else EditorMode.FREE,
         follow_vehicle_id=follow_vehicle_id,
@@ -245,6 +364,21 @@ def build_scene_editor_container(
             object_kind=SceneObjectKind.GOAL_VEHICLE,
             recorder=scene_object_recorder,
         )
+        if manual_control_target is not None:
+            resolver = ResolveVehicleRef(resolver=CarlaVehicleResolverAdapter(world))
+            manual_control = _SceneManualControl(
+                control_target=manual_control_target,
+                resolver=resolver,
+                motion_actuator=CarlaRawMotionActuator(world),
+            )
+            if enable_tick_log:
+                tick_logger = _SceneTickLogger(
+                    map_name=map_name,
+                    control_target=manual_control_target,
+                    resolver=resolver,
+                    state_reader=CarlaVehicleStateReader(world),
+                    world=world,
+                )
 
     runtime = RunSceneEditorLoop(
         world=world,
@@ -262,10 +396,13 @@ def build_scene_editor_container(
         spawn_barrel_at_spectator_xy=spawn_barrel_at_spectator_xy,
         spawn_goal_at_spectator_xy=spawn_goal_at_spectator_xy,
         export_scene=export_scene,
+        manual_control=manual_control,
+        tick_observer=tick_logger,
     )
     return SceneEditorContainer(
         runtime=runtime,
         import_scene_template=import_scene_template,
+        tick_logger=tick_logger,
     )
 
 
@@ -276,4 +413,15 @@ def _initialize_spectator_top_down(*, world_adapter: CarlaWorldAdapter, initial_
     transform.rotation.yaw = 0.0
     transform.rotation.roll = 0.0
     world_adapter.set_spectator_transform(transform)
+
+
+def _resolve_default_scene_tick_log_path() -> Path:
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return Path("runs") / run_id / "scene" / _SCENE_TICK_LOG_FILENAME
+
+
+def _format_vehicle_ref(ref: VehicleRefInput) -> str:
+    if ref.scheme == "first":
+        return "first"
+    return f"{ref.scheme}:{ref.value}"
 
