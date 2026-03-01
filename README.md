@@ -21,6 +21,16 @@ scene editor 场景导入/导出（按键 `1/2` 生成对象，`Ctrl+S` 导出�
 python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
 ```
 
+点跟踪测试
+```bash
+python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000002/episode_spec.json --launch-carla --target-speed-mps 5.0 --bind-spectator --enable-trajectory-log
+
+
+python .\scripts\visualize_tracking_trajectory.py  runs\20260301_202456\results\ep_000002\tracking_metrics.json                               
+```
+
+
+
 分支说明：
 - `main`：主分支，包含最新代码。
 - `agent_control`：`python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --control-mode basic_agent`实现了基于carla的简单遵守道路规则的agent控制。
