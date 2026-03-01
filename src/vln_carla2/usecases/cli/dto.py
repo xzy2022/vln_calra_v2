@@ -12,6 +12,8 @@ from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 RuntimeMode = Literal["sync", "async"]
 WorkflowStrategy = Literal["serial", "parallel"]
 QualityLevel = Literal["Low", "Epic"]
+ExpControlMode = Literal["speed", "basic_agent", "behavior_agent"]
+BehaviorProfile = Literal["cautious", "normal", "aggressive"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +90,8 @@ class ExpRunRequest:
     forward_distance_m: float
     target_speed_mps: float
     max_steps: int
+    control_mode: ExpControlMode = "speed"
+    behavior_profile: BehaviorProfile = "normal"
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,6 +174,8 @@ class ExpWorkflowExecution:
     traveled_distance_m: float
     entered_forbidden_zone: bool
     control_steps: int
+    control_mode: ExpControlMode = "speed"
+    behavior_profile: BehaviorProfile | None = None
     start_transform: EpisodeTransform | None = None
     goal_transform: EpisodeTransform | None = None
     metrics_path: str | None = None

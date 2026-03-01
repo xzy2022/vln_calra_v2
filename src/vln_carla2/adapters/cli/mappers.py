@@ -103,6 +103,8 @@ def to_exp_run_request(command: ExpRunCommand) -> ExpRunRequest:
         forward_distance_m=command.forward_distance_m,
         target_speed_mps=command.target_speed_mps,
         max_steps=command.max_steps,
+        control_mode=command.control_mode,
+        behavior_profile=command.behavior_profile,
     )
 
 

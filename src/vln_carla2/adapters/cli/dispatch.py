@@ -201,8 +201,12 @@ def _print_exp_result(result: ExpRunResult) -> None:
         raise RuntimeError("exp run result missing execution payload")
 
     execution = result.execution
+    behavior_profile_text = ""
+    if execution.control_mode == "behavior_agent" and execution.behavior_profile is not None:
+        behavior_profile_text = f" behavior_profile={execution.behavior_profile}"
     print(
         "[INFO] exp workflow finished "
+        f"control_mode={execution.control_mode}{behavior_profile_text} "
         f"control_target={_format_vehicle_ref(execution.control_target.scheme, execution.control_target.value)} "
         f"actor_id={execution.actor_id} "
         f"map_name={execution.scene_map_name} "
@@ -213,6 +217,11 @@ def _print_exp_result(result: ExpRunResult) -> None:
         f"control_steps={execution.control_steps} "
         f"host={result.host} port={result.port}"
     )
+    if execution.control_mode != "speed":
+        print(
+            "[WARN] forward_distance_m is ignored for control_mode="
+            f"{execution.control_mode}; stopping on agent done/max_steps."
+        )
     if execution.start_transform is not None and execution.goal_transform is not None:
         start = execution.start_transform
         goal = execution.goal_transform

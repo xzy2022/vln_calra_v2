@@ -59,6 +59,7 @@ class _FakeApp:
                 traveled_distance_m=20.5,
                 entered_forbidden_zone=False,
                 control_steps=5,
+                control_mode="speed",
                 metrics_path="runs/20260228_161718/results/ep_000001/metrics.json",
             ),
         )
@@ -184,9 +185,31 @@ def test_build_parser_supports_exp_run_defaults() -> None:
         == "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"
     )
     assert args.control_target == "role:ego"
+    assert args.control_mode == "speed"
+    assert args.behavior_profile == "normal"
     assert args.forward_distance_m == 20.0
     assert args.target_speed_mps == 5.0
     assert args.max_steps == 800
+
+
+def test_build_parser_supports_exp_run_control_mode_options() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "exp",
+            "run",
+            "--episode-spec",
+            "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+            "--control-mode",
+            "behavior_agent",
+            "--behavior-profile",
+            "aggressive",
+        ]
+    )
+
+    assert args.control_mode == "behavior_agent"
+    assert args.behavior_profile == "aggressive"
 
 
 def test_dispatch_vehicle_list_outputs_json(capsys) -> None:
@@ -232,6 +255,45 @@ def test_dispatch_exp_prints_metrics_path(capsys) -> None:
 
     assert exit_code == 0
     assert "metrics saved path=runs/20260228_161718/results/ep_000001/metrics.json" in stdout
+
+
+def test_dispatch_exp_warns_forward_distance_ignored_for_agent_mode(capsys) -> None:
+    app = _FakeApp()
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "exp",
+            "run",
+            "--episode-spec",
+            "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        ]
+    )
+
+    def _run_exp_agent(_request: Any) -> ExpRunResult:
+        return ExpRunResult(
+            host="127.0.0.1",
+            port=2000,
+            execution=ExpWorkflowExecution(
+                control_target=VehicleRefInput(scheme="role", value="ego"),
+                actor_id=7,
+                scene_map_name="Town10HD_Opt",
+                imported_objects=1,
+                forward_distance_m=20.0,
+                traveled_distance_m=20.5,
+                entered_forbidden_zone=False,
+                control_steps=5,
+                control_mode="basic_agent",
+                metrics_path="runs/20260228_161718/results/ep_000001/metrics.json",
+            ),
+        )
+
+    app.run_exp = _run_exp_agent
+
+    exit_code = dispatch_args(args, app=app, parser=parser)
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "forward_distance_m is ignored for control_mode=basic_agent" in stdout
 
 
 def test_dispatch_operator_rejects_invalid_follow_ref(capsys) -> None:

@@ -274,6 +274,24 @@ python -m vln_carla2.app.cli_main spectator follow --host 127.0.0.1 --port 2000 
 python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --keep-carla-server
 ```
 
+- `--control-mode {speed,basic_agent,behavior_agent}`：
+  - 控制模式，默认 `speed`
+  - `speed`：沿用速度闭环控制（按 `forward_distance_m` 进行前进距离停止）
+  - `basic_agent`：使用 CARLA `BasicAgent` 导航到 `episode_spec.goal_transform`
+  - `behavior_agent`：使用 CARLA `BehaviorAgent` 导航到 `episode_spec.goal_transform`
+- `--behavior-profile {cautious,normal,aggressive}`：
+  - 行为风格，默认 `normal`
+  - 仅在 `--control-mode behavior_agent` 时生效
+- 当 `--control-mode` 为 `basic_agent` / `behavior_agent` 时：
+  - `--forward-distance-m` 参数会被忽略
+  - 停止条件为 `agent.done()` 或 `--max-steps`
+
+示例（BehaviorAgent + aggressive）：
+
+```bash
+python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --control-mode behavior_agent --behavior-profile aggressive --max-steps 800 --launch-carla --keep-carla-server
+```
+
 运行后可使用 `+/-` 调整跟随高度；`/` 不会切换模式（锁定 Follow）。
 命令成功结束后会额外输出 metrics 文件路径，默认写入：
 

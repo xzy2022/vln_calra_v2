@@ -9,8 +9,9 @@ description = "vln_carla project"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  # 运行依赖写这里
   "numpy",
+  "networkx",
+  "shapely",
   "carla==0.9.16",
 ]
 

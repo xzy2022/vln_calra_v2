@@ -137,6 +137,18 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
         help="Control target reference: actor:<id>, role:<name>, first, or positive integer id.",
     )
     exp_run.add_argument(
+        "--control-mode",
+        choices=("speed", "basic_agent", "behavior_agent"),
+        default="speed",
+        help="Control mode: speed loop or CARLA navigation agent.",
+    )
+    exp_run.add_argument(
+        "--behavior-profile",
+        choices=("cautious", "normal", "aggressive"),
+        default="normal",
+        help="Behavior profile for behavior_agent control mode.",
+    )
+    exp_run.add_argument(
         "--forward-distance-m",
         type=float,
         default=20.0,

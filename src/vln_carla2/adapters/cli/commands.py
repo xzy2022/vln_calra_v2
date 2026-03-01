@@ -11,6 +11,8 @@ from .vehicle_ref_parser import parse_vehicle_ref
 
 RuntimeMode = Literal["sync", "async"]
 WorkflowStrategy = Literal["serial", "parallel"]
+ExpControlMode = Literal["speed", "basic_agent", "behavior_agent"]
+BehaviorProfile = Literal["cautious", "normal", "aggressive"]
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 2000
@@ -101,6 +103,8 @@ class ExpRunCommand:
     forward_distance_m: float
     target_speed_mps: float
     max_steps: int
+    control_mode: ExpControlMode = "speed"
+    behavior_profile: BehaviorProfile = "normal"
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +221,8 @@ def to_exp_run_command(args: argparse.Namespace) -> ExpRunCommand:
         forward_distance_m=args.forward_distance_m,
         target_speed_mps=args.target_speed_mps,
         max_steps=args.max_steps,
+        control_mode=args.control_mode,
+        behavior_profile=args.behavior_profile,
     )
 
 

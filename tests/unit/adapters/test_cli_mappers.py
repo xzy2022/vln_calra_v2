@@ -74,12 +74,16 @@ def test_to_exp_run_request_maps_control_target() -> None:
         forward_distance_m=20.0,
         target_speed_mps=5.0,
         max_steps=800,
+        control_mode="behavior_agent",
+        behavior_profile="aggressive",
     )
 
     request = to_exp_run_request(command)
 
     assert request.control_target.scheme == "actor"
     assert request.control_target.value == "42"
+    assert request.control_mode == "behavior_agent"
+    assert request.behavior_profile == "aggressive"
     assert (
         request.episode_spec
         == "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"

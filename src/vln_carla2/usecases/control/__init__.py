@@ -1,5 +1,5 @@
 """Control slice."""
 
-from .api import LoopResult, RunControlLoop
+from .api import LoopResult, RunAgentControlLoop, RunControlLoop
 
-__all__ = ["RunControlLoop", "LoopResult"]
+__all__ = ["RunControlLoop", "RunAgentControlLoop", "LoopResult"]

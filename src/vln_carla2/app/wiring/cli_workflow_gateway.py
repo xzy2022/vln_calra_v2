@@ -107,6 +107,8 @@ class CliWorkflowGateway(CliWorkflowPort):
             target_speed_mps=request.target_speed_mps,
             follow_z=20.0,
             max_steps=request.max_steps,
+            control_mode=request.control_mode,
+            behavior_profile=request.behavior_profile,
         )
         result = run_exp_workflow(settings)
         return ExpWorkflowExecution(
@@ -121,6 +123,8 @@ class CliWorkflowGateway(CliWorkflowPort):
             traveled_distance_m=result.exp_workflow_result.traveled_distance_m,
             entered_forbidden_zone=result.exp_workflow_result.entered_forbidden_zone,
             control_steps=result.exp_workflow_result.control_loop_result.executed_steps,
+            control_mode=result.control_mode,
+            behavior_profile=result.behavior_profile,
             start_transform=result.start_transform,
             goal_transform=result.goal_transform,
             metrics_path=result.metrics_path,

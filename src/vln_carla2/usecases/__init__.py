@@ -1,6 +1,6 @@
 """Use case layer."""
 
-from .control import LoopResult, RunControlLoop
+from .control import LoopResult, RunAgentControlLoop, RunControlLoop
 from .exp import ExpWorkflowRequest, ExpWorkflowResult, RunExpWorkflow
 from .runtime import (
     FollowVehicleTopDown,
@@ -23,6 +23,7 @@ from .shared import InputSnapshot, SpawnVehicleRequest, VehicleDescriptor, Vehic
 
 __all__ = [
     "RunControlLoop",
+    "RunAgentControlLoop",
     "LoopResult",
     "RunOperatorWorkflow",
     "RunOperatorLoop",

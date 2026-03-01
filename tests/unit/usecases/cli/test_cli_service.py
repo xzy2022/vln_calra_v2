@@ -51,6 +51,12 @@ class _FakeWorkflows:
             traveled_distance_m=21.0,
             entered_forbidden_zone=False,
             control_steps=5,
+            control_mode=request.control_mode,
+            behavior_profile=(
+                request.behavior_profile
+                if request.control_mode == "behavior_agent"
+                else None
+            ),
             metrics_path="runs/20260228_161718/results/ep_000001/metrics.json",
         )
 
@@ -238,6 +244,8 @@ def _exp_request(**overrides: Any) -> ExpRunRequest:
         forward_distance_m=20.0,
         target_speed_mps=5.0,
         max_steps=800,
+        control_mode="speed",
+        behavior_profile="normal",
     )
     payload.update(overrides)
     return ExpRunRequest(**payload)

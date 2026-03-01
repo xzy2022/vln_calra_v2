@@ -221,6 +221,8 @@ def test_run_wires_exp_dependencies_and_returns_result(monkeypatch: pytest.Monke
     assert captured["metrics_request"].goal_x == 10.0
     assert captured["metrics_request"].goal_y == 20.0
     assert got.metrics_path == "runs/20260228_161718/results/ep_000001/metrics.json"
+    assert got.control_mode == "speed"
+    assert got.behavior_profile is None
 
 
 def test_build_control_loop_for_actor_raises_when_actor_missing() -> None:
@@ -303,5 +305,264 @@ def test_resolve_control_target_with_retry_includes_vehicle_list_on_failure(
         )
 
     assert "actor_id=11" in str(exc.value)
+
+
+def test_run_uses_agent_branch_when_control_mode_is_basic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    fake_world = object()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=42,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    expected_exp_result = ExpWorkflowResult(
+        control_loop_result=LoopResult(
+            executed_steps=3,
+            last_speed_mps=1.2,
+            avg_speed_mps=1.0,
+            last_frame=3,
+        ),
+        sampled_states=4,
+        traveled_distance_m=20.4,
+        entered_forbidden_zone=False,
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000001",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=10.0, y=20.0, z=0.1, yaw=180.0),
+        instruction="",
+        max_steps=500,
+        seed=123,
+    )
+
+    class FakeSceneStore:
+        def load(self, _path: str) -> SceneTemplate:
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, _path: str) -> EpisodeSpec:
+            return episode_spec
+
+        def resolve_scene_json_path(
+            self,
+            *,
+            episode_spec: EpisodeSpec,
+            episode_spec_path: str,
+        ) -> str:
+            del episode_spec, episode_spec_path
+            return "artifacts/scene_out.json"
+
+    @contextmanager
+    def fake_managed_session(config: exp.CarlaSessionConfig):
+        captured["session_config"] = config
+        yield SimpleNamespace(world=fake_world)
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **kwargs: Any) -> None:
+            del kwargs
+
+        def run(self, _path: str) -> int:
+            return 5
+
+    class FakeBuildForbiddenZoneFromScene:
+        def __init__(self, **kwargs: Any) -> None:
+            del kwargs
+
+        def run(self, _path: str) -> object:
+            return "zone"
+
+    class FakeCarlaVehicleStateReader:
+        def __init__(self, _world: Any) -> None:
+            pass
+
+        def read(self, _vehicle_id: Any) -> VehicleState:
+            return VehicleState(
+                frame=100,
+                x=7.0,
+                y=19.0,
+                z=0.1,
+                yaw_deg=0.0,
+                vx=0.0,
+                vy=0.0,
+                vz=0.0,
+                speed_mps=0.0,
+                forbidden_zone_probe_points_xy=(),
+            )
+
+    class FakeGenerateExpMetricsArtifact:
+        def __init__(self, **kwargs: Any) -> None:
+            del kwargs
+
+        def run(self, request: Any) -> Any:
+            captured["metrics_request"] = request
+            return SimpleNamespace(
+                metrics_path="runs/20260228_161718/results/ep_000001/metrics.json"
+            )
+
+    def _fake_agent_exp_workflow(**kwargs: Any) -> ExpWorkflowResult:
+        captured["agent_kwargs"] = kwargs
+        return expected_exp_result
+
+    monkeypatch.setattr(exp, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(exp, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(exp, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(exp, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(
+        exp,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+    monkeypatch.setattr(exp, "BuildForbiddenZoneFromScene", FakeBuildForbiddenZoneFromScene)
+    monkeypatch.setattr(exp, "AndrewMonotoneChainForbiddenZoneBuilder", lambda: "builder")
+    monkeypatch.setattr(exp, "_run_agent_exp_workflow", _fake_agent_exp_workflow)
+    monkeypatch.setattr(
+        exp,
+        "_build_control_loop_for_actor",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("speed path should not be used")),
+    )
+    monkeypatch.setattr(exp, "CarlaWorldAdapter", lambda _world: "world-adapter")
+    monkeypatch.setattr(exp, "FollowVehicleTopDown", lambda **kwargs: ("follow", kwargs))
+    monkeypatch.setattr(exp, "CarlaVehicleStateReader", FakeCarlaVehicleStateReader)
+    monkeypatch.setattr(exp, "ExpMetricsJsonStore", lambda: "metrics-store")
+    monkeypatch.setattr(exp, "GenerateExpMetricsArtifact", FakeGenerateExpMetricsArtifact)
+
+    settings = exp.ExpRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        control_mode="basic_agent",
+        behavior_profile="normal",
+    )
+
+    got = exp.run_exp_workflow(settings)
+
+    assert captured["agent_kwargs"]["control_mode"] == "basic_agent"
+    assert captured["agent_kwargs"]["goal_transform"] == episode_spec.goal_transform
+    assert "forward_distance_m" not in captured["agent_kwargs"]
+    assert got.control_mode == "basic_agent"
+    assert got.behavior_profile is None
+
+
+def test_run_keeps_behavior_profile_when_behavior_agent_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    template = _scene_template()
+    fake_world = object()
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000001",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=10.0, y=20.0, z=0.1, yaw=180.0),
+        instruction="",
+        max_steps=500,
+        seed=123,
+    )
+    expected_exp_result = ExpWorkflowResult(
+        control_loop_result=LoopResult(
+            executed_steps=1,
+            last_speed_mps=0.0,
+            avg_speed_mps=0.0,
+            last_frame=1,
+        ),
+        sampled_states=1,
+        traveled_distance_m=1.0,
+        entered_forbidden_zone=False,
+    )
+
+    class FakeSceneStore:
+        def load(self, _path: str) -> SceneTemplate:
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, _path: str) -> EpisodeSpec:
+            return episode_spec
+
+        def resolve_scene_json_path(
+            self,
+            *,
+            episode_spec: EpisodeSpec,
+            episode_spec_path: str,
+        ) -> str:
+            del episode_spec, episode_spec_path
+            return "artifacts/scene_out.json"
+
+    @contextmanager
+    def fake_managed_session(config: exp.CarlaSessionConfig):
+        del config
+        yield SimpleNamespace(world=fake_world)
+
+    monkeypatch.setattr(exp, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(exp, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(exp, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(
+        exp,
+        "ImportSceneTemplate",
+        lambda **_kwargs: SimpleNamespace(run=lambda _path: 1),
+    )
+    monkeypatch.setattr(
+        exp,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: VehicleDescriptor(
+            actor_id=42,
+            type_id="vehicle.tesla.model3",
+            role_name="ego",
+            x=0.0,
+            y=0.0,
+            z=0.0,
+        ),
+    )
+    monkeypatch.setattr(
+        exp,
+        "BuildForbiddenZoneFromScene",
+        lambda **_kwargs: SimpleNamespace(run=lambda _path: "zone"),
+    )
+    monkeypatch.setattr(exp, "AndrewMonotoneChainForbiddenZoneBuilder", lambda: "builder")
+    monkeypatch.setattr(exp, "_run_agent_exp_workflow", lambda **_kwargs: expected_exp_result)
+    monkeypatch.setattr(exp, "CarlaWorldAdapter", lambda _world: "world-adapter")
+    monkeypatch.setattr(exp, "FollowVehicleTopDown", lambda **kwargs: ("follow", kwargs))
+    monkeypatch.setattr(
+        exp,
+        "CarlaVehicleStateReader",
+        lambda _world: SimpleNamespace(
+            read=lambda _vehicle_id: VehicleState(
+                frame=1,
+                x=0.0,
+                y=0.0,
+                z=0.0,
+                yaw_deg=0.0,
+                vx=0.0,
+                vy=0.0,
+                vz=0.0,
+                speed_mps=0.0,
+                forbidden_zone_probe_points_xy=(),
+            )
+        ),
+    )
+    monkeypatch.setattr(exp, "ExpMetricsJsonStore", lambda: "metrics-store")
+    monkeypatch.setattr(
+        exp,
+        "GenerateExpMetricsArtifact",
+        lambda **_kwargs: SimpleNamespace(
+            run=lambda _request: SimpleNamespace(metrics_path="runs/x/metrics.json")
+        ),
+    )
+
+    got = exp.run_exp_workflow(
+        exp.ExpRunSettings(
+            episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+            control_mode="behavior_agent",
+            behavior_profile="aggressive",
+        )
+    )
+
+    assert got.control_mode == "behavior_agent"
+    assert got.behavior_profile == "aggressive"
 
 
