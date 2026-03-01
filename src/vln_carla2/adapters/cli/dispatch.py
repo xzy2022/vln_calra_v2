@@ -16,6 +16,7 @@ from .commands import (
     to_operator_run_command,
     to_scene_run_command,
     to_spectator_follow_command,
+    to_tracking_run_command,
     to_vehicle_list_command,
     to_vehicle_spawn_command,
 )
@@ -24,6 +25,7 @@ from .mappers import (
     to_operator_run_request,
     to_scene_run_request,
     to_spectator_follow_request,
+    to_tracking_run_request,
     to_vehicle_list_request,
     to_vehicle_spawn_request,
 )
@@ -97,6 +99,20 @@ def dispatch_args(
         except (CliUsageError, CliRuntimeError) as exc:
             return _print_cli_error(exc)
         _print_exp_result(result)
+        return 0
+
+    if command_id == "tracking_run":
+        try:
+            command = to_tracking_run_command(args)
+        except VehicleRefParseError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 2
+        request = to_tracking_run_request(command)
+        try:
+            result = app.run_tracking(request)
+        except (CliUsageError, CliRuntimeError) as exc:
+            return _print_cli_error(exc)
+        _print_tracking_result(result)
         return 0
 
     if command_id == "vehicle_list":
@@ -228,6 +244,46 @@ def _print_exp_result(result: ExpRunResult) -> None:
     )
     if execution.metrics_path is not None:
         print(f"[INFO] metrics saved path={execution.metrics_path}")
+
+
+def _print_tracking_result(result) -> None:
+    _print_launch_report(
+        host=result.host,
+        port=result.port,
+        reused_existing_server=result.launch_report.reused_existing_server,
+        launched_server_pid=result.launch_report.launched_server_pid,
+    )
+    _print_warnings(result.warnings)
+    if result.interrupted:
+        print("[INFO] interrupted by Ctrl+C")
+        return
+
+    if result.execution is None:
+        raise RuntimeError("tracking run result missing execution payload")
+
+    execution = result.execution
+    print(
+        "[INFO] tracking workflow finished "
+        f"control_target={_format_vehicle_ref(execution.control_target.scheme, execution.control_target.value)} "
+        f"actor_id={execution.actor_id} "
+        f"map_name={execution.scene_map_name} "
+        f"imported_objects={execution.imported_objects} "
+        f"reached_goal={execution.reached_goal} "
+        f"termination_reason={execution.termination_reason} "
+        f"executed_steps={execution.executed_steps} "
+        f"final_distance_to_goal_m={execution.final_distance_to_goal_m:.3f} "
+        f"final_yaw_error_deg={execution.final_yaw_error_deg:.3f} "
+        f"route_points={execution.route_points} "
+        f"host={result.host} port={result.port}"
+    )
+    if execution.start_transform is not None and execution.goal_transform is not None:
+        start = execution.start_transform
+        goal = execution.goal_transform
+        print(
+            "[INFO] episode transforms "
+            f"start=(x={start.x:.3f},y={start.y:.3f},z={start.z:.3f},yaw={start.yaw:.3f}) "
+            f"goal=(x={goal.x:.3f},y={goal.y:.3f},z={goal.z:.3f},yaw={goal.yaw:.3f})"
+        )
 
 
 def _print_launch_report(

@@ -91,6 +91,48 @@ class ExpRunRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class TrackingRunRequest:
+    host: str
+    port: int
+    timeout_seconds: float
+    map_name: str
+    mode: RuntimeMode
+    fixed_delta_seconds: float
+    no_rendering: bool
+    tick_sleep_seconds: float
+    offscreen: bool
+    launch_carla: bool
+    reuse_existing_carla: bool
+    carla_exe: str | None
+    carla_startup_timeout_seconds: float
+    quality_level: QualityLevel
+    with_sound: bool
+    keep_carla_server: bool
+    episode_spec: str
+    control_target: VehicleRefInput
+    target_speed_mps: float
+    max_steps: int | None
+    route_step_m: float
+    route_max_points: int
+    lookahead_base_m: float
+    lookahead_speed_gain: float
+    lookahead_min_m: float
+    lookahead_max_m: float
+    wheelbase_m: float
+    max_steer_angle_deg: float
+    pid_kp: float
+    pid_ki: float
+    pid_kd: float
+    max_throttle: float
+    max_brake: float
+    goal_distance_tolerance_m: float
+    goal_yaw_tolerance_deg: float
+    slowdown_distance_m: float
+    min_slow_speed_mps: float
+    steer_rate_limit_per_step: float
+
+
+@dataclass(frozen=True, slots=True)
 class VehicleListRequest:
     host: str
     port: int
@@ -176,6 +218,22 @@ class ExpWorkflowExecution:
 
 
 @dataclass(frozen=True, slots=True)
+class TrackingWorkflowExecution:
+    control_target: VehicleRefInput
+    actor_id: int
+    scene_map_name: str
+    imported_objects: int
+    reached_goal: bool
+    termination_reason: str
+    executed_steps: int
+    final_distance_to_goal_m: float
+    final_yaw_error_deg: float
+    route_points: int
+    start_transform: EpisodeTransform | None = None
+    goal_transform: EpisodeTransform | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class SceneRunResult:
     mode: RuntimeMode
     host: str
@@ -200,6 +258,16 @@ class ExpRunResult:
     host: str
     port: int
     execution: ExpWorkflowExecution | None = None
+    interrupted: bool = False
+    launch_report: LaunchReport = field(default_factory=LaunchReport)
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TrackingRunResult:
+    host: str
+    port: int
+    execution: TrackingWorkflowExecution | None = None
     interrupted: bool = False
     launch_report: LaunchReport = field(default_factory=LaunchReport)
     warnings: tuple[str, ...] = ()

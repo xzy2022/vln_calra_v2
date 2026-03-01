@@ -16,6 +16,7 @@ from .commands import (
 SCENE_COMMAND = "scene"
 OPERATOR_COMMAND = "operator"
 EXP_COMMAND = "exp"
+TRACKING_COMMAND = "tracking"
 VEHICLE_COMMAND = "vehicle"
 SPECTATOR_COMMAND = "spectator"
 
@@ -155,6 +156,61 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
         help="Max control steps used as fail-safe stop.",
     )
     exp_run.set_defaults(command_id="exp_run")
+
+    tracking_parser = root_subparsers.add_parser(
+        TRACKING_COMMAND,
+        help="Tracking workflow operations.",
+    )
+    tracking_subparsers = tracking_parser.add_subparsers(dest="tracking_action", required=True)
+    tracking_run = tracking_subparsers.add_parser(
+        "run",
+        help="Run pure-pursuit + longitudinal PID tracking workflow.",
+    )
+    _add_scene_runtime_arguments(
+        tracking_run,
+        default_carla_exe=default_carla_exe,
+    )
+    tracking_run.add_argument(
+        "--episode-spec",
+        required=True,
+        help="Path to episode_spec.json used to resolve scene import/map/start/goal metadata.",
+    )
+    tracking_run.add_argument(
+        "--control-target",
+        default="role:ego",
+        help="Control target reference: actor:<id>, role:<name>, first, or positive integer id.",
+    )
+    tracking_run.add_argument(
+        "--target-speed-mps",
+        type=float,
+        default=5.0,
+        help="Cruise target speed in m/s.",
+    )
+    tracking_run.add_argument(
+        "--max-steps",
+        type=int,
+        default=None,
+        help="Optional max control steps override (defaults to episode_spec.max_steps).",
+    )
+    tracking_run.add_argument("--route-step-m", type=float, default=2.0)
+    tracking_run.add_argument("--route-max-points", type=int, default=2000)
+    tracking_run.add_argument("--lookahead-base-m", type=float, default=3.0)
+    tracking_run.add_argument("--lookahead-speed-gain", type=float, default=0.35)
+    tracking_run.add_argument("--lookahead-min-m", type=float, default=2.5)
+    tracking_run.add_argument("--lookahead-max-m", type=float, default=12.0)
+    tracking_run.add_argument("--wheelbase-m", type=float, default=2.85)
+    tracking_run.add_argument("--max-steer-angle-deg", type=float, default=70.0)
+    tracking_run.add_argument("--pid-kp", type=float, default=1.0)
+    tracking_run.add_argument("--pid-ki", type=float, default=0.05)
+    tracking_run.add_argument("--pid-kd", type=float, default=0.0)
+    tracking_run.add_argument("--max-throttle", type=float, default=0.75)
+    tracking_run.add_argument("--max-brake", type=float, default=0.30)
+    tracking_run.add_argument("--goal-distance-tolerance-m", type=float, default=1.5)
+    tracking_run.add_argument("--goal-yaw-tolerance-deg", type=float, default=15.0)
+    tracking_run.add_argument("--slowdown-distance-m", type=float, default=12.0)
+    tracking_run.add_argument("--min-slow-speed-mps", type=float, default=0.8)
+    tracking_run.add_argument("--steer-rate-limit-per-step", type=float, default=0.10)
+    tracking_run.set_defaults(command_id="tracking_run")
 
     vehicle_parser = root_subparsers.add_parser(VEHICLE_COMMAND, help="Vehicle operations.")
     vehicle_subparsers = vehicle_parser.add_subparsers(dest="vehicle_action", required=True)

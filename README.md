@@ -21,6 +21,10 @@ scene editor 场景导入/导出（按键 `1/2` 生成对象，`Ctrl+S` 导出�
 python -m vln_carla2.app.cli_main scene run --host 127.0.0.1 --port 2000 --mode sync --scene-export-path artifacts/scene_out.json --launch-carla 
 ```
 
+分支说明：
+- `main`：主分支，包含最新代码。
+- `agent_control`：`python -m vln_carla2.app.cli_main exp run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --control-mode basic_agent`实现了基于carla的简单遵守道路规则的agent控制。
+
 ### 1.2 参考文档说明
 `Docs_Carla_UE4` 是 CARLA 官方文档。
 `PythonAPI_Carla_UE4` 是 CARLA 安装路径下的 Python API 文档。
@@ -96,3 +100,18 @@ EPISODE_SPEC_EXPORT_DIR=datasets/town10hd_val_v1/episodes/ep_000001
 1. 若显式传入 `--scene-export-path`，spec 输出到该 scene JSON 的同级目录。
 2. 否则，若配置了 `EPISODE_SPEC_EXPORT_DIR`，spec 输出到该目录。
 3. 否则，回退到 scene JSON 的实际导出目录。
+
+### Tracking 工作流（Pure Pursuit + 纵向 PID）
+
+`tracking run` 会读取 `episode_spec.json`，导入对应场景并跟踪到目标点，控制输出为 `VehicleControl(throttle/brake/steer)`。
+
+```bash
+python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --target-speed-mps 5.0
+```
+
+可选关键参数：
+
+- `--max-steps`（默认 `None`，回退到 episode spec）
+- `--route-step-m`、`--route-max-points`
+- `--lookahead-base-m`、`--lookahead-speed-gain`、`--lookahead-min-m`、`--lookahead-max-m`
+- `--pid-kp`、`--pid-ki`、`--pid-kd`

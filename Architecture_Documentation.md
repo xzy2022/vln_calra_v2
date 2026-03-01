@@ -10,6 +10,7 @@
 - `runtime`（operator + spectator）
 - `scene`（scene_editor + safety）
 - `exp`
+- `tracking`（Pure Pursuit + 纵向 PID 路径跟踪）
 - `cli`
 - `shared`（跨切片 DTO / 轻协议）
 
@@ -48,4 +49,3 @@
 - usecases 切片门禁：`tests/unit/architecture/test_usecase_slice_dependencies.py`
   - `source_slice -> same_slice | shared | other_slice.api`
   - `shared -> shared`（且可依赖 `domain`）
-

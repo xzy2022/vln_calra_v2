@@ -14,6 +14,10 @@ from vln_carla2.app.wiring.operator import (
     run_operator_workflow,
 )
 from vln_carla2.app.wiring.scene import SceneEditorSettings, run_scene_editor
+from vln_carla2.app.wiring.tracking import (
+    TrackingRunSettings,
+    run_tracking_workflow as run_tracking_composed_workflow,
+)
 from vln_carla2.infrastructure.carla.session_runtime import CarlaSessionConfig, managed_carla_session
 from vln_carla2.usecases.cli.dto import (
     ExpRunRequest,
@@ -23,6 +27,8 @@ from vln_carla2.usecases.cli.dto import (
     SceneRunRequest,
     SpawnVehicleRequest,
     SpectatorFollowRequest,
+    TrackingRunRequest,
+    TrackingWorkflowExecution,
     VehicleListRequest,
     VehicleRefInput,
     VehicleSpawnRequest,
@@ -124,6 +130,57 @@ class CliWorkflowGateway(CliWorkflowPort):
             start_transform=result.start_transform,
             goal_transform=result.goal_transform,
             metrics_path=result.metrics_path,
+        )
+
+    def run_tracking_workflow(self, request: TrackingRunRequest) -> TrackingWorkflowExecution:
+        settings = TrackingRunSettings(
+            episode_spec_path=request.episode_spec,
+            host=request.host,
+            port=request.port,
+            timeout_seconds=request.timeout_seconds,
+            synchronous_mode=request.mode == "sync",
+            fixed_delta_seconds=request.fixed_delta_seconds,
+            no_rendering_mode=request.no_rendering,
+            offscreen_mode=request.offscreen,
+            control_target=_to_operator_vehicle_ref(request.control_target),
+            target_speed_mps=request.target_speed_mps,
+            max_steps=request.max_steps,
+            route_step_m=request.route_step_m,
+            route_max_points=request.route_max_points,
+            lookahead_base_m=request.lookahead_base_m,
+            lookahead_speed_gain=request.lookahead_speed_gain,
+            lookahead_min_m=request.lookahead_min_m,
+            lookahead_max_m=request.lookahead_max_m,
+            wheelbase_m=request.wheelbase_m,
+            max_steer_angle_deg=request.max_steer_angle_deg,
+            pid_kp=request.pid_kp,
+            pid_ki=request.pid_ki,
+            pid_kd=request.pid_kd,
+            max_throttle=request.max_throttle,
+            max_brake=request.max_brake,
+            goal_distance_tolerance_m=request.goal_distance_tolerance_m,
+            goal_yaw_tolerance_deg=request.goal_yaw_tolerance_deg,
+            slowdown_distance_m=request.slowdown_distance_m,
+            min_slow_speed_mps=request.min_slow_speed_mps,
+            steer_rate_limit_per_step=request.steer_rate_limit_per_step,
+        )
+        result = run_tracking_composed_workflow(settings)
+        return TrackingWorkflowExecution(
+            control_target=VehicleRefInput(
+                scheme=result.control_target.scheme,
+                value=result.control_target.value,
+            ),
+            actor_id=result.selected_vehicle.actor_id,
+            scene_map_name=result.scene_map_name,
+            imported_objects=result.imported_objects,
+            reached_goal=result.tracking_result.reached_goal,
+            termination_reason=result.tracking_result.termination_reason,
+            executed_steps=result.tracking_result.executed_steps,
+            final_distance_to_goal_m=result.tracking_result.final_distance_to_goal_m,
+            final_yaw_error_deg=result.tracking_result.final_yaw_error_deg,
+            route_points=len(result.tracking_result.route_points),
+            start_transform=result.start_transform,
+            goal_transform=result.goal_transform,
         )
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:

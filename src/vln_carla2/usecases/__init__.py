@@ -20,6 +20,7 @@ from .scene import (
     SpawnVehicleAtSpectatorXY,
 )
 from .shared import InputSnapshot, SpawnVehicleRequest, VehicleDescriptor, VehicleRefInput
+from .tracking import RunTrackingLoop, TerminationReason, TrackingRequest, TrackingResult
 
 __all__ = [
     "RunControlLoop",
@@ -39,6 +40,10 @@ __all__ = [
     "RunExpWorkflow",
     "ExpWorkflowRequest",
     "ExpWorkflowResult",
+    "RunTrackingLoop",
+    "TrackingRequest",
+    "TrackingResult",
+    "TerminationReason",
     "BuildForbiddenZoneFromScene",
     "AndrewMonotoneChainForbiddenZoneBuilder",
     "VehicleDescriptor",

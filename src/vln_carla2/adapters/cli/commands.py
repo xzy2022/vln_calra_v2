@@ -104,6 +104,48 @@ class ExpRunCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class TrackingRunCommand:
+    host: str
+    port: int
+    timeout_seconds: float
+    map_name: str
+    mode: RuntimeMode
+    fixed_delta_seconds: float
+    no_rendering: bool
+    tick_sleep_seconds: float
+    offscreen: bool
+    launch_carla: bool
+    reuse_existing_carla: bool
+    carla_exe: str | None
+    carla_startup_timeout_seconds: float
+    quality_level: Literal["Low", "Epic"]
+    with_sound: bool
+    keep_carla_server: bool
+    episode_spec: str
+    control_target: VehicleRefInput
+    target_speed_mps: float
+    max_steps: int | None
+    route_step_m: float
+    route_max_points: int
+    lookahead_base_m: float
+    lookahead_speed_gain: float
+    lookahead_min_m: float
+    lookahead_max_m: float
+    wheelbase_m: float
+    max_steer_angle_deg: float
+    pid_kp: float
+    pid_ki: float
+    pid_kd: float
+    max_throttle: float
+    max_brake: float
+    goal_distance_tolerance_m: float
+    goal_yaw_tolerance_deg: float
+    slowdown_distance_m: float
+    min_slow_speed_mps: float
+    steer_rate_limit_per_step: float
+
+
+@dataclass(frozen=True, slots=True)
 class VehicleListCommand:
     host: str
     port: int
@@ -217,6 +259,49 @@ def to_exp_run_command(args: argparse.Namespace) -> ExpRunCommand:
         forward_distance_m=args.forward_distance_m,
         target_speed_mps=args.target_speed_mps,
         max_steps=args.max_steps,
+    )
+
+
+def to_tracking_run_command(args: argparse.Namespace) -> TrackingRunCommand:
+    return TrackingRunCommand(
+        host=args.host,
+        port=args.port,
+        timeout_seconds=args.timeout_seconds,
+        map_name=args.map_name,
+        mode=args.mode,
+        fixed_delta_seconds=args.fixed_delta_seconds,
+        no_rendering=args.no_rendering,
+        tick_sleep_seconds=args.tick_sleep_seconds,
+        offscreen=args.offscreen,
+        launch_carla=args.launch_carla,
+        reuse_existing_carla=args.reuse_existing_carla,
+        carla_exe=args.carla_exe,
+        carla_startup_timeout_seconds=args.carla_startup_timeout_seconds,
+        quality_level=args.quality_level,
+        with_sound=args.with_sound,
+        keep_carla_server=args.keep_carla_server,
+        episode_spec=args.episode_spec,
+        control_target=parse_vehicle_ref(args.control_target),
+        target_speed_mps=args.target_speed_mps,
+        max_steps=args.max_steps,
+        route_step_m=args.route_step_m,
+        route_max_points=args.route_max_points,
+        lookahead_base_m=args.lookahead_base_m,
+        lookahead_speed_gain=args.lookahead_speed_gain,
+        lookahead_min_m=args.lookahead_min_m,
+        lookahead_max_m=args.lookahead_max_m,
+        wheelbase_m=args.wheelbase_m,
+        max_steer_angle_deg=args.max_steer_angle_deg,
+        pid_kp=args.pid_kp,
+        pid_ki=args.pid_ki,
+        pid_kd=args.pid_kd,
+        max_throttle=args.max_throttle,
+        max_brake=args.max_brake,
+        goal_distance_tolerance_m=args.goal_distance_tolerance_m,
+        goal_yaw_tolerance_deg=args.goal_yaw_tolerance_deg,
+        slowdown_distance_m=args.slowdown_distance_m,
+        min_slow_speed_mps=args.min_slow_speed_mps,
+        steer_rate_limit_per_step=args.steer_rate_limit_per_step,
     )
 
 

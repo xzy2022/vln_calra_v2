@@ -18,6 +18,8 @@ main
 │  └─ run
 ├─ operator
 │  └─ run
+├─ tracking
+│  └─ run
 ├─ vehicle
 │  ├─ list
 │  └─ spawn
@@ -28,11 +30,11 @@ main
 ### 1.2 兼容入口说明
 
 - 已移除 legacy 根命令兼容。
-- 必须显式使用 `scene run` / `operator run` / `vehicle list` / `vehicle spawn` / `spectator follow`。
+- 必须显式使用 `scene run` / `operator run` / `tracking run` / `vehicle list` / `vehicle spawn` / `spectator follow`。
 
 ## 2. 通用连接参数
 
-以下参数由 `scene run`、`operator run`、`vehicle list`、`vehicle spawn`、`spectator follow` 共用：
+以下参数由 `scene run`、`operator run`、`tracking run`、`vehicle list`、`vehicle spawn`、`spectator follow` 共用：
 
 - `--host`：CARLA 主机，默认 `127.0.0.1`
 - `--port`：CARLA RPC 端口，默认 `2000`
@@ -126,6 +128,41 @@ main
 
 - `serial`：先运行 `operator` 预热（`operator_warmup_ticks`），再运行 `control`。
 - `parallel`：单线程交错并行，每个控制步前先执行一次 operator 逻辑，再执行控制步。
+
+## 4.4 tracking run（Pure Pursuit + 纵向 PID）
+
+### 功能
+
+- 导入 `episode_spec` 指向的场景并解析目标点。
+- 使用 `Map.get_waypoint + Waypoint.next` 生成局部路点。
+- 运行 `Pure Pursuit`（横向）+ `Longitudinal PID`（纵向）跟踪到目标点。
+- 输出终端摘要（是否到达、终止原因、最终距离与航向误差），不落盘 metrics 文件。
+
+### 参数
+
+- 继承 `scene run` 的运行参数：
+  - `--tick-sleep-seconds`
+  - `--offscreen`
+  - `--launch-carla`
+  - `--reuse-existing-carla`
+  - `--carla-exe`
+  - `--carla-startup-timeout-seconds`
+  - `--quality-level`
+  - `--with-sound`
+  - `--keep-carla-server`
+- tracking 参数：
+  - `--episode-spec`（必填）
+  - `--control-target`（默认 `role:ego`）
+  - `--target-speed-mps`（默认 `5.0`）
+  - `--max-steps`（默认 `None`，回退到 `episode_spec.max_steps`）
+  - `--route-step-m`、`--route-max-points`
+  - `--lookahead-base-m`、`--lookahead-speed-gain`、`--lookahead-min-m`、`--lookahead-max-m`
+  - `--wheelbase-m`、`--max-steer-angle-deg`
+  - `--pid-kp`、`--pid-ki`、`--pid-kd`
+  - `--max-throttle`、`--max-brake`
+  - `--goal-distance-tolerance-m`、`--goal-yaw-tolerance-deg`
+  - `--slowdown-distance-m`、`--min-slow-speed-mps`
+  - `--steer-rate-limit-per-step`
 
 ## 5. vehicle list（车辆列表）
 
@@ -288,6 +325,21 @@ runs/<YYYYMMDD_HHMMSS>/results/<episode目录名>/metrics.json
 - `goal_position_xy`
 - `final_to_goal_distance_xy_m`
 - `episode_spec_path`
+
+### 11.7 运行 tracking（Pure Pursuit + PID）
+
+```bash
+python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --target-speed-mps 5.0
+```
+
+命令结束后会在终端输出：
+
+- `reached_goal`
+- `termination_reason`
+- `executed_steps`
+- `final_distance_to_goal_m`
+- `final_yaw_error_deg`
+- `route_points`
 
 ## 12. Python 调用示例（非 CLI）
 

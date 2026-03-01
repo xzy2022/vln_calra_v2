@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 
-SLICE_NAMES = {"control", "runtime", "scene", "exp", "cli", "shared"}
+SLICE_NAMES = {"control", "runtime", "scene", "exp", "tracking", "cli", "shared"}
 
 
 def test_usecase_slice_dependencies_are_shared_or_api_only() -> None:
@@ -95,4 +95,3 @@ def _violation_reason(
 def _is_api_module(*, target_slice: str, target_module: str) -> bool:
     api_module = f"vln_carla2.usecases.{target_slice}.api"
     return target_module == api_module or target_module.startswith(api_module + ".")
-

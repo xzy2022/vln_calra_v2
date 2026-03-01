@@ -12,6 +12,8 @@ from vln_carla2.usecases.cli.dto import (
     OperatorWorkflowExecution,
     SceneRunResult,
     SpectatorFollowResult,
+    TrackingRunResult,
+    TrackingWorkflowExecution,
     VehicleRefInput,
 )
 from vln_carla2.usecases.cli.errors import CliRuntimeError, CliUsageError
@@ -23,6 +25,7 @@ class _FakeApp:
     scene_calls: list[Any] = field(default_factory=list)
     operator_calls: list[Any] = field(default_factory=list)
     exp_calls: list[Any] = field(default_factory=list)
+    tracking_calls: list[Any] = field(default_factory=list)
     spectator_calls: list[Any] = field(default_factory=list)
     vehicle_list_calls: list[Any] = field(default_factory=list)
     vehicle_spawn_calls: list[Any] = field(default_factory=list)
@@ -60,6 +63,25 @@ class _FakeApp:
                 entered_forbidden_zone=False,
                 control_steps=5,
                 metrics_path="runs/20260228_161718/results/ep_000001/metrics.json",
+            ),
+        )
+
+    def run_tracking(self, request: Any) -> TrackingRunResult:
+        self.tracking_calls.append(request)
+        return TrackingRunResult(
+            host=request.host,
+            port=request.port,
+            execution=TrackingWorkflowExecution(
+                control_target=VehicleRefInput(scheme="role", value="ego"),
+                actor_id=7,
+                scene_map_name="Town10HD_Opt",
+                imported_objects=1,
+                reached_goal=True,
+                termination_reason="goal_reached",
+                executed_steps=12,
+                final_distance_to_goal_m=0.4,
+                final_yaw_error_deg=2.0,
+                route_points=120,
             ),
         )
 
@@ -189,6 +211,28 @@ def test_build_parser_supports_exp_run_defaults() -> None:
     assert args.max_steps == 800
 
 
+def test_build_parser_supports_tracking_run_defaults() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "tracking",
+            "run",
+            "--episode-spec",
+            "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        ]
+    )
+
+    assert (
+        args.episode_spec
+        == "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json"
+    )
+    assert args.control_target == "role:ego"
+    assert args.target_speed_mps == 5.0
+    assert args.max_steps is None
+    assert args.route_step_m == 2.0
+
+
 def test_dispatch_vehicle_list_outputs_json(capsys) -> None:
     app = _FakeApp()
     parser = build_parser()
@@ -232,6 +276,27 @@ def test_dispatch_exp_prints_metrics_path(capsys) -> None:
 
     assert exit_code == 0
     assert "metrics saved path=runs/20260228_161718/results/ep_000001/metrics.json" in stdout
+
+
+def test_dispatch_tracking_prints_summary(capsys) -> None:
+    app = _FakeApp()
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "tracking",
+            "run",
+            "--episode-spec",
+            "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        ]
+    )
+
+    exit_code = dispatch_args(args, app=app, parser=parser)
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "tracking workflow finished" in stdout
+    assert "termination_reason=goal_reached" in stdout
+    assert app.tracking_calls
 
 
 def test_dispatch_operator_rejects_invalid_follow_ref(capsys) -> None:

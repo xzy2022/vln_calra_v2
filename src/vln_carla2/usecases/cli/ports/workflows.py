@@ -11,6 +11,8 @@ from vln_carla2.usecases.cli.dto import (
     OperatorWorkflowExecution,
     SceneRunRequest,
     SpectatorFollowRequest,
+    TrackingRunRequest,
+    TrackingWorkflowExecution,
     VehicleListRequest,
     VehicleRefInput,
     VehicleSpawnRequest,
@@ -28,6 +30,9 @@ class CliWorkflowPort(Protocol):
         ...
 
     def run_exp_workflow(self, request: ExpRunRequest) -> ExpWorkflowExecution:
+        ...
+
+    def run_tracking_workflow(self, request: TrackingRunRequest) -> TrackingWorkflowExecution:
         ...
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:

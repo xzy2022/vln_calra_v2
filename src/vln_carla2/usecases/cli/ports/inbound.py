@@ -11,6 +11,8 @@ from vln_carla2.usecases.cli.dto import (
     OperatorRunResult,
     SceneRunRequest,
     SceneRunResult,
+    TrackingRunRequest,
+    TrackingRunResult,
     SpectatorFollowRequest,
     SpectatorFollowResult,
     VehicleListRequest,
@@ -29,6 +31,9 @@ class CliApplicationUseCasePort(Protocol):
         ...
 
     def run_exp(self, request: ExpRunRequest) -> ExpRunResult:
+        ...
+
+    def run_tracking(self, request: TrackingRunRequest) -> TrackingRunResult:
         ...
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:

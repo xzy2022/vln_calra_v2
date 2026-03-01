@@ -8,6 +8,8 @@ from typing import Any
 from vln_carla2.usecases.cli.dto import (
     ExpRunRequest,
     ExpRunResult,
+    TrackingRunRequest,
+    TrackingRunResult,
     LaunchCarlaServerRequest,
     LaunchReport,
     OperatorRunRequest,
@@ -137,6 +139,40 @@ class CliApplicationService(CliApplicationUseCasePort):
             warnings=tuple(warnings),
         )
 
+    def run_tracking(self, request: TrackingRunRequest) -> TrackingRunResult:
+        warnings = self._collect_runtime_warnings(request)
+        launch_decision = _LaunchDecision(launch_report=LaunchReport())
+        try:
+            # Validate input path early so launch map override is deterministic.
+            self.scene_template_loader.load_map_name(request.episode_spec)
+        except Exception as exc:
+            raise CliRuntimeError(f"tracking workflow argument validation failed: {exc}") from exc
+
+        launch_decision = self._prepare_launch_if_needed(request)
+        interrupted = False
+        execution = None
+        try:
+            execution = self.workflows.run_tracking_workflow(request)
+        except KeyboardInterrupt:
+            interrupted = True
+        except Exception as exc:
+            raise CliRuntimeError(f"tracking workflow failed: {exc}") from exc
+        finally:
+            self._cleanup_launch_if_needed(
+                request=request,
+                launch_decision=launch_decision,
+                warnings=warnings,
+            )
+
+        return TrackingRunResult(
+            host=request.host,
+            port=request.port,
+            execution=execution,
+            interrupted=interrupted,
+            launch_report=launch_decision.launch_report,
+            warnings=tuple(warnings),
+        )
+
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:
         try:
             return self.workflows.list_vehicles(request)
@@ -200,7 +236,7 @@ class CliApplicationService(CliApplicationUseCasePort):
 
     def _prepare_launch_if_needed(
         self,
-        request: SceneRunRequest | OperatorRunRequest | ExpRunRequest,
+        request: SceneRunRequest | OperatorRunRequest | ExpRunRequest | TrackingRunRequest,
     ) -> _LaunchDecision:
         if not request.launch_carla:
             return _LaunchDecision(launch_report=LaunchReport())
@@ -209,7 +245,7 @@ class CliApplicationService(CliApplicationUseCasePort):
     def _cleanup_launch_if_needed(
         self,
         *,
-        request: SceneRunRequest | OperatorRunRequest | ExpRunRequest,
+        request: SceneRunRequest | OperatorRunRequest | ExpRunRequest | TrackingRunRequest,
         launch_decision: _LaunchDecision,
         warnings: list[str],
     ) -> None:
@@ -226,7 +262,7 @@ class CliApplicationService(CliApplicationUseCasePort):
 
     def _collect_runtime_warnings(
         self,
-        request: SceneRunRequest | OperatorRunRequest | ExpRunRequest,
+        request: SceneRunRequest | OperatorRunRequest | ExpRunRequest | TrackingRunRequest,
     ) -> list[str]:
         warnings: list[str] = []
         if request.offscreen and not request.launch_carla:
@@ -237,7 +273,7 @@ class CliApplicationService(CliApplicationUseCasePort):
 
     def _maybe_launch_carla(
         self,
-        request: SceneRunRequest | OperatorRunRequest | ExpRunRequest,
+        request: SceneRunRequest | OperatorRunRequest | ExpRunRequest | TrackingRunRequest,
     ) -> _LaunchDecision:
         if not self.server_control.is_loopback_host(request.host):
             raise CliUsageError(
