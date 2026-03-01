@@ -150,6 +150,7 @@ class TrackingRunCommand:
     spectator_z: float = 20.0
     enable_trajectory_log: bool = False
     trajectory_log_path: str | None = None
+    target_tick_log_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,6 +321,7 @@ def to_tracking_run_command(args: argparse.Namespace) -> TrackingRunCommand:
         spectator_z=args.spectator_z,
         enable_trajectory_log=args.enable_trajectory_log,
         trajectory_log_path=args.trajectory_log_path,
+        target_tick_log_path=args.target_tick_log_path,
     )
 
 

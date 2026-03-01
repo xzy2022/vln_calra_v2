@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,7 +35,7 @@ from vln_carla2.usecases.runtime.resolve_vehicle_ref import ResolveVehicleRef
 from vln_carla2.usecases.scene.import_scene_template import ImportSceneTemplate
 from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 from vln_carla2.usecases.tracking.api import RunTrackingLoop, TrackingRequest, TrackingResult
-from vln_carla2.usecases.tracking.models import TrackingStepTrace
+from vln_carla2.usecases.tracking.models import RoutePoint, TrackingStepTrace
 
 from .control import StdoutLogger
 
@@ -63,6 +64,39 @@ class _FollowBoundClock:
                 f"actor_id={self.vehicle_id.value}"
             )
         return frame
+
+
+@dataclass(frozen=True, slots=True)
+class _FixedRoutePlanner:
+    """Route planner adapter that always returns one preloaded route."""
+
+    route_points: tuple[RoutePoint, ...]
+
+    def plan_route(
+        self,
+        *,
+        start_x: float,
+        start_y: float,
+        start_yaw_deg: float,
+        goal: Any,
+        route_step_m: float,
+        route_max_points: int,
+    ) -> tuple[RoutePoint, ...]:
+        del start_x, start_y, start_yaw_deg, goal, route_step_m
+        if route_max_points <= 0:
+            raise ValueError("route_max_points must be > 0")
+        if len(self.route_points) > route_max_points:
+            raise RuntimeError(
+                "target tick log route exceeds route_max_points: "
+                f"points={len(self.route_points)} route_max_points={route_max_points}"
+            )
+        return self.route_points
+
+
+@dataclass(frozen=True, slots=True)
+class _TargetRouteFromTickLog:
+    route_points: tuple[RoutePoint, ...]
+    goal_transform: EpisodeTransform
 
 
 @dataclass(slots=True)
@@ -104,6 +138,7 @@ class TrackingRunSettings:
     spectator_z: float = 20.0
     enable_trajectory_log: bool = False
     trajectory_log_path: str | None = None
+    target_tick_log_path: str | None = None
 
     def __post_init__(self) -> None:
         if not self.episode_spec_path or not self.episode_spec_path.strip():
@@ -122,6 +157,8 @@ class TrackingRunSettings:
             raise ValueError("spectator_z must be > 0")
         if self.trajectory_log_path is not None and not self.trajectory_log_path.strip():
             raise ValueError("trajectory_log_path must not be empty when set")
+        if self.target_tick_log_path is not None and not self.target_tick_log_path.strip():
+            raise ValueError("target_tick_log_path must not be empty when set")
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,20 +236,38 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                 vehicle_id=vehicle_id,
             )
 
+        goal_transform = episode_spec.goal_transform
+        route_planner: Any
+        if settings.target_tick_log_path is not None:
+            target_route = _load_target_route_from_tick_log(
+                path=settings.target_tick_log_path,
+                expected_map_name=scene_template.map_name,
+                route_max_points=settings.route_max_points,
+            )
+            goal_transform = target_route.goal_transform
+            route_planner = _FixedRoutePlanner(route_points=target_route.route_points)
+            logger.info(
+                "tracking target route loaded "
+                f"path={settings.target_tick_log_path} "
+                f"points={len(target_route.route_points)}"
+            )
+        else:
+            route_planner = CarlaWaypointRoutePlannerAdapter(session.world)
+
         tracking_loop = RunTrackingLoop(
             state_reader=CarlaVehicleStateReader(session.world),
             motion_actuator=CarlaRawMotionActuator(session.world),
             clock=clock,
             logger=logger,
-            route_planner=CarlaWaypointRoutePlannerAdapter(session.world),
+            route_planner=route_planner,
         )
         effective_max_steps = settings.max_steps or episode_spec.max_steps
         tracking_result = tracking_loop.run(
             TrackingRequest(
                 vehicle_id=vehicle_id,
-                goal_x=episode_spec.goal_transform.x,
-                goal_y=episode_spec.goal_transform.y,
-                goal_yaw_deg=episode_spec.goal_transform.yaw,
+                goal_x=goal_transform.x,
+                goal_y=goal_transform.y,
+                goal_yaw_deg=goal_transform.yaw,
                 target_speed_mps=settings.target_speed_mps,
                 max_steps=effective_max_steps,
                 dt_seconds=settings.fixed_delta_seconds,
@@ -251,7 +306,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                 control_target=settings.control_target,
                 actor_id=selected_vehicle.actor_id,
                 start_transform=episode_spec.start_transform,
-                goal_transform=episode_spec.goal_transform,
+                goal_transform=goal_transform,
                 tracking_result=tracking_result,
             )
             metrics_path = ExpMetricsJsonStore().save(payload, output_path)
@@ -264,7 +319,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
         selected_vehicle=selected_vehicle,
         imported_objects=imported_objects,
         start_transform=episode_spec.start_transform,
-        goal_transform=episode_spec.goal_transform,
+        goal_transform=goal_transform,
         tracking_result=tracking_result,
         metrics_path=metrics_path,
     )
@@ -335,6 +390,74 @@ def _step_trace_to_payload(trace: TrackingStepTrace) -> dict[str, float | int]:
         "brake": trace.brake,
         "steer": trace.steer,
     }
+
+
+def _load_target_route_from_tick_log(
+    *,
+    path: str,
+    expected_map_name: str,
+    route_max_points: int,
+) -> _TargetRouteFromTickLog:
+    target = Path(path)
+    if not target.exists():
+        raise ValueError(f"target_tick_log_path does not exist: {path}")
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ValueError(f"target_tick_log_path is not valid JSON: {path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("target tick log payload must be a JSON object")
+
+    map_name_value = payload.get("map_name")
+    if map_name_value is not None:
+        source_map_name = str(map_name_value).strip()
+        if source_map_name and source_map_name != expected_map_name:
+            raise ValueError(
+                "target tick log map_name mismatch: "
+                f"expected={expected_map_name} got={source_map_name}"
+            )
+
+    tick_traces = payload.get("tick_traces")
+    if not isinstance(tick_traces, list):
+        raise ValueError("target tick log payload must contain list field 'tick_traces'")
+
+    route_points: list[RoutePoint] = []
+    last_z = 0.0
+    for entry in tick_traces:
+        if not isinstance(entry, dict):
+            continue
+        x = entry.get("x")
+        y = entry.get("y")
+        if x is None or y is None:
+            continue
+        yaw = entry.get("yaw_deg", 0.0)
+        if yaw is None:
+            yaw = 0.0
+        z_value = entry.get("z")
+        if z_value is not None:
+            last_z = float(z_value)
+        route_points.append(RoutePoint(x=float(x), y=float(y), yaw_deg=float(yaw)))
+
+    if not route_points:
+        raise ValueError("target tick log does not contain any valid x/y trajectory points")
+    if route_max_points <= 0:
+        raise ValueError("route_max_points must be > 0")
+    if len(route_points) > route_max_points:
+        raise ValueError(
+            "target tick log route exceeds route_max_points: "
+            f"points={len(route_points)} route_max_points={route_max_points}"
+        )
+
+    goal_point = route_points[-1]
+    return _TargetRouteFromTickLog(
+        route_points=tuple(route_points),
+        goal_transform=EpisodeTransform(
+            x=goal_point.x,
+            y=goal_point.y,
+            z=last_z,
+            yaw=goal_point.yaw_deg,
+        ),
+    )
 
 
 def _resolve_default_tracking_metrics_path(*, episode_spec_path: str) -> Path:

@@ -246,6 +246,24 @@ def test_build_parser_supports_tracking_run_defaults() -> None:
     assert args.spectator_z == 20.0
     assert args.enable_trajectory_log is False
     assert args.trajectory_log_path is None
+    assert args.target_tick_log_path is None
+
+
+def test_build_parser_supports_tracking_run_target_tick_log_path() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "tracking",
+            "run",
+            "--episode-spec",
+            "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+            "--target-tick-log-path",
+            "runs/custom/scene_tick_log.json",
+        ]
+    )
+
+    assert args.target_tick_log_path == "runs/custom/scene_tick_log.json"
 
 
 def test_dispatch_vehicle_list_outputs_json(capsys) -> None:

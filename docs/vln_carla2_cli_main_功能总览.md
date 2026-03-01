@@ -142,6 +142,7 @@ main
 
 - 导入 `episode_spec` 指向的场景并解析目标点。
 - 使用 `Map.get_waypoint + Waypoint.next` 生成局部路点。
+- 可选从 `scene_tick_log.json` 读取 `tick_traces` 作为目标轨迹。
 - 运行 `Pure Pursuit`（横向）+ `Longitudinal PID`（纵向）跟踪到目标点。
 - 输出终端摘要（是否到达、终止原因、最终距离与航向误差），不落盘 metrics 文件。
 
@@ -170,6 +171,7 @@ main
   - `--goal-distance-tolerance-m`、`--goal-yaw-tolerance-deg`
   - `--slowdown-distance-m`、`--min-slow-speed-mps`
   - `--steer-rate-limit-per-step`
+  - `--target-tick-log-path`：可选。指定后使用该 `scene_tick_log.json` 的 `tick_traces` 作为目标轨迹，终止目标取日志最后一个点。
 
 ## 5. vehicle list（车辆列表）
 
@@ -353,7 +355,7 @@ runs/<YYYYMMDD_HHMMSS>/results/<episode目录名>/metrics.json
 ### 11.7 运行 tracking（Pure Pursuit + PID）
 
 ```bash
-python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000002/episode_spec.json --launch-carla --target-speed-mps 5.0 --bind-spectator --enable-trajectory-log
+python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000002/episode_spec.json --launch-carla --target-speed-mps 5.0 --bind-spectator --enable-trajectory-log --target-tick-log-path runs/custom/scene_tick_log.json
 ```
 
 命令结束后会在终端输出：

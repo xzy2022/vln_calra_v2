@@ -252,6 +252,13 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
             "When omitted, writes runs/<time>/results/<episode>/tracking_metrics.json."
         ),
     )
+    tracking_run.add_argument(
+        "--target-tick-log-path",
+        help=(
+            "Optional input path for scene tick log JSON. "
+            "When set, tracking follows tick_traces from this file as target trajectory."
+        ),
+    )
     tracking_run.set_defaults(command_id="tracking_run")
 
     vehicle_parser = root_subparsers.add_parser(VEHICLE_COMMAND, help="Vehicle operations.")

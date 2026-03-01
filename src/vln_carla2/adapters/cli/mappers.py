@@ -159,6 +159,7 @@ def to_tracking_run_request(command: TrackingRunCommand) -> TrackingRunRequest:
         spectator_z=command.spectator_z,
         enable_trajectory_log=command.enable_trajectory_log,
         trajectory_log_path=command.trajectory_log_path,
+        target_tick_log_path=command.target_tick_log_path,
     )
 
 

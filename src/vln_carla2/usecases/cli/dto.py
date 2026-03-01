@@ -137,6 +137,7 @@ class TrackingRunRequest:
     spectator_z: float = 20.0
     enable_trajectory_log: bool = False
     trajectory_log_path: str | None = None
+    target_tick_log_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

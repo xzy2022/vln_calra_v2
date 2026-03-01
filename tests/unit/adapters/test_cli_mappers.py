@@ -174,6 +174,7 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
         spectator_z=25.0,
         enable_trajectory_log=True,
         trajectory_log_path="runs/custom/tracking_metrics.json",
+        target_tick_log_path="runs/custom/scene_tick_log.json",
     )
 
     request = to_tracking_run_request(command)
@@ -187,3 +188,4 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
     assert request.spectator_z == 25.0
     assert request.enable_trajectory_log is True
     assert request.trajectory_log_path == "runs/custom/tracking_metrics.json"
+    assert request.target_tick_log_path == "runs/custom/scene_tick_log.json"

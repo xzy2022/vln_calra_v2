@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,6 +23,8 @@ from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 from vln_carla2.usecases.tracking.api import TrackingResult
 from vln_carla2.usecases.tracking.models import TrackingStepTrace
 
+CASE_ROOT = Path(".tmp_test_artifacts") / "tracking_bootstrap"
+
 
 def _scene_template() -> SceneTemplate:
     return SceneTemplate.from_iterable(
@@ -35,6 +39,14 @@ def _scene_template() -> SceneTemplate:
             )
         ],
     )
+
+
+def _case_dir(name: str) -> Path:
+    case_dir = CASE_ROOT / name
+    if case_dir.exists():
+        shutil.rmtree(case_dir)
+    case_dir.mkdir(parents=True, exist_ok=True)
+    return case_dir
 
 
 def test_run_tracking_workflow_wires_dependencies_and_returns_result(
@@ -219,3 +231,202 @@ def test_run_tracking_workflow_wires_dependencies_and_returns_result(
         Path(got.metrics_path).as_posix()
         == "/abs/runs/20260301_123456/results/ep_000001/tracking_metrics.json"
     )
+
+
+def test_run_tracking_workflow_uses_tick_log_as_target_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    fake_world = object()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=24,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000002",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=99.0, y=88.0, z=0.1, yaw=180.0),
+        instruction="",
+        max_steps=120,
+        seed=321,
+    )
+    expected_tracking_result = TrackingResult(
+        executed_steps=2,
+        last_frame=2,
+        reached_goal=False,
+        termination_reason="max_steps",
+        final_distance_to_goal_m=1.2,
+        final_yaw_error_deg=3.0,
+        route_points=(),
+        step_traces=(),
+    )
+    tick_log_path = _case_dir("uses_tick_log_route") / "scene_tick_log.json"
+    tick_log_path.write_text(
+        json.dumps(
+            {
+                "map_name": "Town10HD_Opt",
+                "tick_traces": [
+                    {"x": 4.0, "y": -5.0, "z": 0.12, "yaw_deg": 0.0},
+                    {"x": 8.5, "y": -6.0, "z": 0.20, "yaw_deg": 45.0},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeSceneStore:
+        def load(self, path: str) -> SceneTemplate:
+            captured.setdefault("scene_load_calls", []).append(path)
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, path: str) -> EpisodeSpec:
+            captured["episode_spec_load_path"] = path
+            return episode_spec
+
+        def resolve_scene_json_path(
+            self,
+            *,
+            episode_spec: EpisodeSpec,
+            episode_spec_path: str,
+        ) -> str:
+            del episode_spec, episode_spec_path
+            return "artifacts/scene_out.json"
+
+    @contextmanager
+    def fake_managed_session(config: tracking.CarlaSessionConfig):
+        captured["session_config"] = config
+        yield SimpleNamespace(world=fake_world)
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["import_init"] = kwargs
+
+        def run(self, path: str) -> int:
+            captured["import_path"] = path
+            return 3
+
+    class FakeRunTrackingLoop:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["tracking_loop_init"] = kwargs
+
+        def run(self, request: Any) -> TrackingResult:
+            captured["tracking_request"] = request
+            return expected_tracking_result
+
+    class FakeMetricsStore:
+        def save(self, metrics_payload: dict[str, object], path: str) -> str:
+            captured["metrics_payload"] = dict(metrics_payload)
+            captured["metrics_path_arg"] = path
+            return f"/abs/{path}"
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(tracking, "ExpMetricsJsonStore", lambda: FakeMetricsStore())
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    def _fail_if_waypoint_planner_used(_world: Any) -> None:
+        raise AssertionError("CarlaWaypointRoutePlannerAdapter should not be used")
+
+    monkeypatch.setattr(tracking, "CarlaWaypointRoutePlannerAdapter", _fail_if_waypoint_planner_used)
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000002/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        control_target=VehicleRefInput(scheme="role", value="ego"),
+        max_steps=20,
+        enable_trajectory_log=True,
+        target_tick_log_path=str(tick_log_path),
+    )
+
+    got = tracking.run_tracking_workflow(settings)
+
+    assert isinstance(captured["tracking_loop_init"]["route_planner"], tracking._FixedRoutePlanner)
+    assert captured["tracking_request"].goal_x == 8.5
+    assert captured["tracking_request"].goal_y == -6.0
+    assert captured["tracking_request"].goal_yaw_deg == 45.0
+    assert got.goal_transform == EpisodeTransform(x=8.5, y=-6.0, z=0.2, yaw=45.0)
+    assert (
+        captured["metrics_payload"]["goal_transform"]
+        == {"x": 8.5, "y": -6.0, "z": 0.2, "yaw": 45.0}
+    )
+
+
+def test_load_target_route_from_tick_log_rejects_map_mismatch() -> None:
+    target = _case_dir("rejects_map_mismatch") / "scene_tick_log.json"
+    target.write_text(
+        json.dumps(
+            {
+                "map_name": "Town03",
+                "tick_traces": [{"x": 1.0, "y": 2.0, "yaw_deg": 0.0}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="map_name mismatch"):
+        tracking._load_target_route_from_tick_log(
+            path=str(target),
+            expected_map_name="Town10HD_Opt",
+            route_max_points=2000,
+        )
+
+
+def test_load_target_route_from_tick_log_rejects_missing_points() -> None:
+    target = _case_dir("rejects_missing_points") / "scene_tick_log.json"
+    target.write_text(
+        json.dumps(
+            {
+                "map_name": "Town10HD_Opt",
+                "tick_traces": [{"frame": 1}, {"yaw_deg": 10.0}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="does not contain any valid x/y trajectory points"):
+        tracking._load_target_route_from_tick_log(
+            path=str(target),
+            expected_map_name="Town10HD_Opt",
+            route_max_points=2000,
+        )
+
+
+def test_load_target_route_from_tick_log_rejects_route_max_points_exceeded(
+) -> None:
+    target = _case_dir("rejects_route_max_points_exceeded") / "scene_tick_log.json"
+    target.write_text(
+        json.dumps(
+            {
+                "map_name": "Town10HD_Opt",
+                "tick_traces": [
+                    {"x": 1.0, "y": 2.0, "yaw_deg": 0.0},
+                    {"x": 2.0, "y": 3.0, "yaw_deg": 0.0},
+                    {"x": 3.0, "y": 4.0, "yaw_deg": 0.0},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="exceeds route_max_points"):
+        tracking._load_target_route_from_tick_log(
+            path=str(target),
+            expected_map_name="Town10HD_Opt",
+            route_max_points=2,
+        )
