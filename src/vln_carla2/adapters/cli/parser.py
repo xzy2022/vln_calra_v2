@@ -243,7 +243,11 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
     tracking_run.add_argument(
         "--enable-trajectory-log",
         action="store_true",
-        help="Save structured tracking trajectory evaluation log as JSON.",
+        help=(
+            "Save structured tracking trajectory evaluation log as JSON. "
+            "When --planner=hybrid_forward, include local occupancy-grid "
+            "planning map and obstacle data."
+        ),
     )
     tracking_run.add_argument(
         "--trajectory-log-path",

@@ -12,6 +12,7 @@ import pytest
 
 from vln_carla2.app.wiring import tracking
 from vln_carla2.domain.model.episode_spec import EpisodeSpec, EpisodeTransform
+from vln_carla2.domain.model.planning_map import PlanningMap
 from vln_carla2.domain.model.scene_template import (
     SceneObject,
     SceneObjectKind,
@@ -21,7 +22,7 @@ from vln_carla2.domain.model.scene_template import (
 from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 from vln_carla2.usecases.tracking.api import TrackingResult
-from vln_carla2.usecases.tracking.models import TrackingStepTrace
+from vln_carla2.usecases.tracking.models import RoutePoint, TrackingStepTrace
 
 CASE_ROOT = Path(".tmp_test_artifacts") / "tracking_bootstrap"
 
@@ -37,6 +38,27 @@ def _scene_template() -> SceneTemplate:
                 role_name="ego",
                 pose=ScenePose(x=1.0, y=2.0, z=0.1, yaw=0.0),
             )
+        ],
+    )
+
+
+def _scene_template_with_barrel() -> SceneTemplate:
+    return SceneTemplate.from_iterable(
+        schema_version=1,
+        map_name="Town10HD_Opt",
+        objects=[
+            SceneObject(
+                kind=SceneObjectKind.VEHICLE,
+                blueprint_id="vehicle.tesla.model3",
+                role_name="ego",
+                pose=ScenePose(x=1.0, y=2.0, z=0.1, yaw=0.0),
+            ),
+            SceneObject(
+                kind=SceneObjectKind.BARREL,
+                blueprint_id="static.prop.barrel",
+                role_name="barrel_1",
+                pose=ScenePose(x=11.0, y=11.0, z=0.0, yaw=0.0),
+            ),
         ],
     )
 
@@ -221,6 +243,7 @@ def test_run_tracking_workflow_wires_dependencies_and_returns_result(
     assert captured["metrics_payload"]["episode_spec_path"] == settings.episode_spec_path
     assert captured["metrics_payload"]["summary"]["executed_steps"] == 12
     assert len(captured["metrics_payload"]["tick_traces"]) == 1
+    assert "planning_map" not in captured["metrics_payload"]
     assert got.selected_vehicle == selected_vehicle
     assert got.imported_objects == 5
     assert got.start_transform == episode_spec.start_transform
@@ -473,6 +496,159 @@ def test_run_tracking_workflow_uses_hybrid_planner_route_adapter(
         captured["tracking_loop_init"]["route_planner"],
         tracking.PlanningApiRoutePlannerAdapter,
     )
+
+
+def test_run_tracking_workflow_hybrid_trajectory_log_includes_local_planning_map(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template_with_barrel()
+    fake_world = object()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=24,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000003",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=9.0, y=4.0, z=0.1, yaw=45.0),
+        instruction="",
+        max_steps=120,
+        seed=321,
+    )
+    expected_tracking_result = TrackingResult(
+        executed_steps=3,
+        last_frame=3,
+        reached_goal=False,
+        termination_reason="max_steps",
+        final_distance_to_goal_m=2.0,
+        final_yaw_error_deg=5.0,
+        route_points=(
+            RoutePoint(x=12.0, y=12.0, yaw_deg=0.0),
+            RoutePoint(x=13.0, y=13.0, yaw_deg=0.0),
+        ),
+        step_traces=(),
+    )
+
+    class FakeSceneStore:
+        def load(self, path: str) -> SceneTemplate:
+            captured.setdefault("scene_load_calls", []).append(path)
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, path: str) -> EpisodeSpec:
+            captured["episode_spec_load_path"] = path
+            return episode_spec
+
+        def resolve_scene_json_path(
+            self,
+            *,
+            episode_spec: EpisodeSpec,
+            episode_spec_path: str,
+        ) -> str:
+            del episode_spec, episode_spec_path
+            return "artifacts/scene_out.json"
+
+    @contextmanager
+    def fake_managed_session(config: tracking.CarlaSessionConfig):
+        captured["session_config"] = config
+        yield SimpleNamespace(world=fake_world)
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["import_init"] = kwargs
+
+        def run(self, path: str) -> int:
+            captured["import_path"] = path
+            return 3
+
+    class FakeRunTrackingLoop:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["tracking_loop_init"] = kwargs
+
+        def run(self, request: Any) -> TrackingResult:
+            captured["tracking_request"] = request
+            return expected_tracking_result
+
+    class FakeMetricsStore:
+        def save(self, metrics_payload: dict[str, object], path: str) -> str:
+            captured["metrics_payload"] = dict(metrics_payload)
+            captured["metrics_path_arg"] = path
+            return f"/abs/{path}"
+
+    class FakeHybridRoutePlanner:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["hybrid_planner_init"] = kwargs
+            self.last_planning_map = PlanningMap(
+                map_name="Town10HD_Opt",
+                resolution_m=1.0,
+                min_x=0.0,
+                max_x=100.0,
+                min_y=0.0,
+                max_y=100.0,
+                width=100,
+                height=100,
+                occupied_cells=((15, 15), (90, 90)),
+            )
+
+        def plan_route(self, **_kwargs: Any) -> tuple[RoutePoint, ...]:
+            return expected_tracking_result.route_points
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(tracking, "ExpMetricsJsonStore", lambda: FakeMetricsStore())
+    monkeypatch.setattr(tracking, "PlanningApiRoutePlannerAdapter", FakeHybridRoutePlanner)
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    def _fail_if_waypoint_planner_used(_world: Any) -> None:
+        raise AssertionError("CarlaWaypointRoutePlannerAdapter should not be used")
+
+    monkeypatch.setattr(tracking, "CarlaWaypointRoutePlannerAdapter", _fail_if_waypoint_planner_used)
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000003/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        control_target=VehicleRefInput(scheme="role", value="ego"),
+        max_steps=20,
+        planner="hybrid_forward",
+        enable_trajectory_log=True,
+    )
+
+    tracking.run_tracking_workflow(settings)
+
+    assert isinstance(captured["tracking_loop_init"]["route_planner"], FakeHybridRoutePlanner)
+    planning_map_payload = captured["metrics_payload"]["planning_map"]
+    assert planning_map_payload["planner"] == "hybrid_forward"
+    assert planning_map_payload["scope"] == "episode_local"
+    assert planning_map_payload["resolution_m"] == 1.0
+    assert planning_map_payload["origin_x"] == pytest.approx(0.0)
+    assert planning_map_payload["origin_y"] == pytest.approx(0.0)
+    assert planning_map_payload["width"] == 24
+    assert planning_map_payload["height"] == 24
+    assert planning_map_payload["occupied_cells"] == [[15, 15]]
+    assert planning_map_payload["obstacles"] == [
+        {"x": 11.0, "y": 11.0, "radius_m": 0.5}
+    ]
+    assert planning_map_payload["bounds"] == {
+        "min_x": 0.0,
+        "max_x": 24.0,
+        "min_y": 0.0,
+        "max_y": 24.0,
+    }
 
 
 def test_load_target_route_from_tick_log_rejects_map_mismatch() -> None:

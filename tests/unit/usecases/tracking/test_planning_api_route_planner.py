@@ -55,4 +55,6 @@ def test_planning_api_route_planner_maps_domain_path_to_tracking_route_points() 
     assert route[0].x == 1.0
     assert route[-1].x == 8.0
     assert route[-1].yaw_deg == 10.0
-
+    assert adapter.last_planning_map is not None
+    assert adapter.last_planning_map.map_name == "Town10HD_Opt"
+    assert adapter.last_planning_map.resolution_m == 1.0

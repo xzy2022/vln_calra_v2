@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal
 
 from vln_carla2.domain.model.episode_spec import EpisodeTransform
+from vln_carla2.domain.model.planning_map import PlanningMap
+from vln_carla2.domain.model.scene_template import SceneObjectKind, SceneTemplate
 from vln_carla2.domain.model.vehicle_id import VehicleId
 from vln_carla2.domain.services.planning.hybrid_astar_forward import (
     HybridAStarForwardPlanner,
@@ -58,6 +61,8 @@ _PLANNING_OBSTACLE_INFLATION_M = 1.6
 _PLANNING_YAW_BIN_DEG = 15.0
 _PLANNING_PRIMITIVE_STEP_M = 1.0
 _PLANNING_MAX_ITERATIONS = 80000
+_PLANNING_LOCAL_MAP_PADDING_M = 10.0
+_PLANNING_BARREL_RADIUS_M = 0.5
 
 
 def _default_control_target() -> VehicleRefInput:
@@ -260,6 +265,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
 
         goal_transform = episode_spec.goal_transform
         route_planner: Any
+        hybrid_route_planner: PlanningApiRoutePlannerAdapter | None = None
         if settings.target_tick_log_path is not None:
             target_route = _load_target_route_from_tick_log(
                 path=settings.target_tick_log_path,
@@ -274,7 +280,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                 f"points={len(target_route.route_points)}"
             )
         elif settings.planner == "hybrid_forward":
-            route_planner = PlanningApiRoutePlannerAdapter(
+            hybrid_route_planner = PlanningApiRoutePlannerAdapter(
                 map_name=scene_template.map_name,
                 build_planning_map=BuildPlanningMap(
                     source=CarlaPlanningMapSourceAdapter(
@@ -293,6 +299,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                     )
                 ),
             )
+            route_planner = hybrid_route_planner
             logger.info("tracking planner selected planner=hybrid_forward")
         else:
             route_planner = CarlaWaypointRoutePlannerAdapter(session.world)
@@ -343,6 +350,15 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                     episode_spec_path=settings.episode_spec_path
                 )
             )
+            planning_map_payload: dict[str, object] | None = None
+            if settings.planner == "hybrid_forward" and hybrid_route_planner is not None:
+                planning_map_payload = _build_local_planning_map_payload(
+                    planning_map=hybrid_route_planner.last_planning_map,
+                    scene_template=scene_template,
+                    start_transform=episode_spec.start_transform,
+                    goal_transform=goal_transform,
+                    tracking_result=tracking_result,
+                )
             payload = _build_tracking_metrics_payload(
                 episode_spec_path=settings.episode_spec_path,
                 scene_map_name=scene_template.map_name,
@@ -351,6 +367,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                 start_transform=episode_spec.start_transform,
                 goal_transform=goal_transform,
                 tracking_result=tracking_result,
+                planning_map_payload=planning_map_payload,
             )
             metrics_path = ExpMetricsJsonStore().save(payload, output_path)
 
@@ -377,8 +394,9 @@ def _build_tracking_metrics_payload(
     start_transform: EpisodeTransform,
     goal_transform: EpisodeTransform,
     tracking_result: TrackingResult,
+    planning_map_payload: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "episode_spec_path": episode_spec_path,
         "map_name": scene_map_name,
         "actor_id": actor_id,
@@ -403,6 +421,119 @@ def _build_tracking_metrics_payload(
             _step_trace_to_payload(trace) for trace in tracking_result.step_traces
         ],
     }
+    if planning_map_payload is not None:
+        payload["planning_map"] = planning_map_payload
+    return payload
+
+
+def _build_local_planning_map_payload(
+    *,
+    planning_map: PlanningMap | None,
+    scene_template: SceneTemplate,
+    start_transform: EpisodeTransform,
+    goal_transform: EpisodeTransform,
+    tracking_result: TrackingResult,
+) -> dict[str, object] | None:
+    if planning_map is None:
+        return None
+
+    obstacles = _extract_scene_barrel_obstacles(scene_template=scene_template)
+    focus_points: list[tuple[float, float]] = [
+        (point.x, point.y) for point in tracking_result.route_points
+    ]
+    focus_points.append((start_transform.x, start_transform.y))
+    focus_points.append((goal_transform.x, goal_transform.y))
+    focus_points.extend((obstacle[0], obstacle[1]) for obstacle in obstacles)
+
+    min_focus_x = min(point[0] for point in focus_points) - _PLANNING_LOCAL_MAP_PADDING_M
+    max_focus_x = max(point[0] for point in focus_points) + _PLANNING_LOCAL_MAP_PADDING_M
+    min_focus_y = min(point[1] for point in focus_points) - _PLANNING_LOCAL_MAP_PADDING_M
+    max_focus_y = max(point[1] for point in focus_points) + _PLANNING_LOCAL_MAP_PADDING_M
+
+    crop_min_x = max(planning_map.min_x, min_focus_x)
+    crop_max_x = min(planning_map.max_x, max_focus_x)
+    crop_min_y = max(planning_map.min_y, min_focus_y)
+    crop_max_y = min(planning_map.max_y, max_focus_y)
+    if crop_max_x <= crop_min_x or crop_max_y <= crop_min_y:
+        crop_min_x = planning_map.min_x
+        crop_max_x = planning_map.max_x
+        crop_min_y = planning_map.min_y
+        crop_max_y = planning_map.max_y
+
+    resolution_m = planning_map.resolution_m
+    min_cell_x = max(
+        0,
+        int(math.floor((crop_min_x - planning_map.min_x) / resolution_m)),
+    )
+    max_cell_x = min(
+        planning_map.width - 1,
+        int(math.floor((crop_max_x - planning_map.min_x) / resolution_m)),
+    )
+    min_cell_y = max(
+        0,
+        int(math.floor((crop_min_y - planning_map.min_y) / resolution_m)),
+    )
+    max_cell_y = min(
+        planning_map.height - 1,
+        int(math.floor((crop_max_y - planning_map.min_y) / resolution_m)),
+    )
+    if max_cell_x < min_cell_x:
+        max_cell_x = min_cell_x
+    if max_cell_y < min_cell_y:
+        max_cell_y = min_cell_y
+
+    local_origin_x = planning_map.min_x + float(min_cell_x) * resolution_m
+    local_origin_y = planning_map.min_y + float(min_cell_y) * resolution_m
+    local_width = max_cell_x - min_cell_x + 1
+    local_height = max_cell_y - min_cell_y + 1
+    local_max_x = local_origin_x + float(local_width) * resolution_m
+    local_max_y = local_origin_y + float(local_height) * resolution_m
+
+    occupied_cells = [
+        [cell_x - min_cell_x, cell_y - min_cell_y]
+        for cell_x, cell_y in planning_map.occupied_cells
+        if min_cell_x <= cell_x <= max_cell_x and min_cell_y <= cell_y <= max_cell_y
+    ]
+    cropped_obstacles = [
+        {"x": x, "y": y, "radius_m": radius_m}
+        for x, y, radius_m in obstacles
+        if local_origin_x <= x <= local_max_x and local_origin_y <= y <= local_max_y
+    ]
+
+    return {
+        "planner": "hybrid_forward",
+        "scope": "episode_local",
+        "resolution_m": resolution_m,
+        "origin_x": local_origin_x,
+        "origin_y": local_origin_y,
+        "width": local_width,
+        "height": local_height,
+        "bounds": {
+            "min_x": local_origin_x,
+            "max_x": local_max_x,
+            "min_y": local_origin_y,
+            "max_y": local_max_y,
+        },
+        "occupied_cells": occupied_cells,
+        "obstacles": cropped_obstacles,
+    }
+
+
+def _extract_scene_barrel_obstacles(
+    *, scene_template: SceneTemplate
+) -> list[tuple[float, float, float]]:
+    obstacles: list[tuple[float, float, float]] = []
+    for scene_object in scene_template.objects:
+        if scene_object.kind != SceneObjectKind.BARREL:
+            continue
+        obstacles.append(
+            (
+                float(scene_object.pose.x),
+                float(scene_object.pose.y),
+                _PLANNING_BARREL_RADIUS_M,
+            )
+        )
+    return obstacles
 
 
 def _transform_to_payload(transform: EpisodeTransform) -> dict[str, float]:

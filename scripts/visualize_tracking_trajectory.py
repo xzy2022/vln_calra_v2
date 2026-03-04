@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Iterable
 
@@ -15,6 +16,8 @@ except ImportError as exc:  # pragma: no cover - runtime dependency check
     raise SystemExit(
         "matplotlib is required for visualization. Install it with: pip install matplotlib"
     ) from exc
+
+_MAX_OCCUPIED_RENDER_POINTS = 30_000
 
 
 def parse_args() -> argparse.Namespace:
@@ -104,6 +107,100 @@ def _default_output_path(metrics_path: Path) -> Path:
     return metrics_path.with_name(f"{metrics_path.stem}_trajectory_compare.png")
 
 
+def _extract_planning_map_layers(
+    payload: dict[str, object],
+) -> tuple[np.ndarray, int, list[tuple[float, float, float | None]]]:
+    planning_map = payload.get("planning_map")
+    if not isinstance(planning_map, dict):
+        return np.empty((0, 2), dtype=float), 0, []
+    occupied_xy, occupied_total = _extract_occupied_cell_xy(planning_map)
+    obstacles = _extract_obstacle_markers(planning_map)
+    return occupied_xy, occupied_total, obstacles
+
+
+def _extract_occupied_cell_xy(
+    planning_map: dict[str, object],
+) -> tuple[np.ndarray, int]:
+    occupied_cells = planning_map.get("occupied_cells")
+    if not isinstance(occupied_cells, list):
+        return np.empty((0, 2), dtype=float), 0
+
+    resolution_m = planning_map.get("resolution_m")
+    origin_x = planning_map.get("origin_x")
+    origin_y = planning_map.get("origin_y")
+    if resolution_m is None or origin_x is None or origin_y is None:
+        return np.empty((0, 2), dtype=float), 0
+
+    try:
+        resolution = float(resolution_m)
+        base_x = float(origin_x)
+        base_y = float(origin_y)
+    except (TypeError, ValueError):
+        return np.empty((0, 2), dtype=float), 0
+    if not math.isfinite(resolution) or resolution <= 0.0:
+        return np.empty((0, 2), dtype=float), 0
+
+    points: list[tuple[float, float]] = []
+    for cell in occupied_cells:
+        if not isinstance(cell, (list, tuple)) or len(cell) < 2:
+            continue
+        try:
+            cell_x = int(cell[0])
+            cell_y = int(cell[1])
+        except (TypeError, ValueError):
+            continue
+        if cell_x < 0 or cell_y < 0:
+            continue
+        points.append(
+            (
+                base_x + (float(cell_x) + 0.5) * resolution,
+                base_y + (float(cell_y) + 0.5) * resolution,
+            )
+        )
+
+    total_count = len(points)
+    if total_count == 0:
+        return np.empty((0, 2), dtype=float), 0
+
+    if total_count > _MAX_OCCUPIED_RENDER_POINTS:
+        stride = int(math.ceil(total_count / float(_MAX_OCCUPIED_RENDER_POINTS)))
+        points = points[::max(1, stride)]
+    return np.asarray(points, dtype=float), total_count
+
+
+def _extract_obstacle_markers(
+    planning_map: dict[str, object],
+) -> list[tuple[float, float, float | None]]:
+    raw_obstacles = planning_map.get("obstacles")
+    if not isinstance(raw_obstacles, list):
+        return []
+
+    obstacles: list[tuple[float, float, float | None]] = []
+    for item in raw_obstacles:
+        if not isinstance(item, dict):
+            continue
+        x_value = item.get("x")
+        y_value = item.get("y")
+        if x_value is None or y_value is None:
+            continue
+        try:
+            x = float(x_value)
+            y = float(y_value)
+        except (TypeError, ValueError):
+            continue
+        radius_raw = item.get("radius_m")
+        radius: float | None = None
+        if radius_raw is not None:
+            try:
+                radius_val = float(radius_raw)
+            except (TypeError, ValueError):
+                radius_val = float("nan")
+            if math.isfinite(radius_val) and radius_val > 0.0:
+                radius = radius_val
+        obstacles.append((x, y, radius))
+    return obstacles
+
+
 def main() -> None:
     args = parse_args()
     metrics_path = args.metrics_path
@@ -124,6 +221,7 @@ def main() -> None:
     if len(actual_xy) == 0:
         # scene tick log format stores world position directly as x/y.
         actual_xy = _extract_xy(tick_traces, x_key="x", y_key="y")
+    occupied_xy, occupied_total, obstacles = _extract_planning_map_layers(payload)
     if len(planned_xy) == 0 and len(actual_xy) == 0:
         raise SystemExit("no trajectory points found in the metrics file")
 
@@ -141,6 +239,47 @@ def main() -> None:
         1, 2, figsize=(13, 6), gridspec_kw={"width_ratios": [2.2, 1.0]}
     )
 
+    if len(occupied_xy) > 0:
+        occupied_label = f"Occupied Cells ({len(occupied_xy)} shown)"
+        if occupied_total == len(occupied_xy):
+            occupied_label = f"Occupied Cells ({occupied_total})"
+        ax_xy.scatter(
+            occupied_xy[:, 0],
+            occupied_xy[:, 1],
+            color="#7f7f7f",
+            marker="s",
+            s=8,
+            alpha=0.18,
+            linewidths=0.0,
+            label=occupied_label,
+            zorder=1,
+        )
+
+    obstacle_label_used = False
+    for x, y, radius in obstacles:
+        label = None if obstacle_label_used else "Obstacles"
+        if radius is not None:
+            obstacle_circle = plt.Circle(
+                (x, y),
+                radius,
+                edgecolor="#b22222",
+                facecolor="none",
+                linewidth=1.2,
+                alpha=0.85,
+            )
+            ax_xy.add_patch(obstacle_circle)
+        ax_xy.scatter(
+            [x],
+            [y],
+            color="#b22222",
+            marker="x",
+            s=36,
+            linewidths=1.4,
+            label=label,
+            zorder=2,
+        )
+        obstacle_label_used = True
+
     if len(planned_xy) > 0:
         ax_xy.plot(
             planned_xy[:, 0],
@@ -149,6 +288,7 @@ def main() -> None:
             linestyle="--",
             linewidth=2.0,
             label=f"Planned ({len(planned_xy)} pts)",
+            zorder=3,
         )
         ax_xy.scatter(
             planned_xy[0, 0],
@@ -157,6 +297,7 @@ def main() -> None:
             marker="o",
             s=55,
             label="Plan Start",
+            zorder=4,
         )
         ax_xy.scatter(
             planned_xy[-1, 0],
@@ -165,6 +306,7 @@ def main() -> None:
             marker="X",
             s=85,
             label="Plan Goal",
+            zorder=4,
         )
 
     if len(actual_xy) > 0:
@@ -174,6 +316,7 @@ def main() -> None:
             color="#ff7f0e",
             linewidth=2.0,
             label=f"Actual ({len(actual_xy)} pts)",
+            zorder=5,
         )
         ax_xy.scatter(
             actual_xy[0, 0],
@@ -182,6 +325,7 @@ def main() -> None:
             marker="o",
             s=45,
             label="Actual Start",
+            zorder=6,
         )
         ax_xy.scatter(
             actual_xy[-1, 0],
@@ -190,6 +334,7 @@ def main() -> None:
             marker="s",
             s=60,
             label="Actual End",
+            zorder=6,
         )
 
     ax_xy.set_title("Trajectory Comparison (XY)")

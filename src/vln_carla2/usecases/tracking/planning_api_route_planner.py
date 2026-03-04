@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
+from vln_carla2.domain.model.planning_map import PlanningMap
 from vln_carla2.domain.model.pose2d import Pose2D
 from vln_carla2.usecases.planning.api import (
     BuildPlanningMap,
@@ -22,6 +23,7 @@ class PlanningApiRoutePlannerAdapter:
     map_name: str
     build_planning_map: BuildPlanningMap
     plan_route_usecase: PlanRoute
+    last_planning_map: PlanningMap | None = field(default=None, init=False)
 
     def plan_route(
         self,
@@ -43,6 +45,7 @@ class PlanningApiRoutePlannerAdapter:
                 goal=goal_pose,
             )
         )
+        self.last_planning_map = planning_map
         path = self.plan_route_usecase.run(
             PlanRouteRequest(
                 start=start_pose,
@@ -56,4 +59,3 @@ class PlanningApiRoutePlannerAdapter:
             RoutePoint(x=pose.x, y=pose.y, yaw_deg=pose.yaw_deg)
             for pose in path.poses
         )
-
