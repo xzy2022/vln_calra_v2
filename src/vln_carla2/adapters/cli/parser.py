@@ -252,7 +252,17 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
             "When omitted, writes runs/<time>/results/<episode>/tracking_metrics.json."
         ),
     )
-    tracking_run.add_argument(
+    planner_group = tracking_run.add_mutually_exclusive_group()
+    planner_group.add_argument(
+        "--planner",
+        choices=("waypoint", "hybrid_forward"),
+        default="waypoint",
+        help=(
+            "Route planner backend: waypoint (CARLA route planner) or "
+            "hybrid_forward (forward-only hybrid A*)."
+        ),
+    )
+    planner_group.add_argument(
         "--target-tick-log-path",
         help=(
             "Optional input path for scene tick log JSON. "

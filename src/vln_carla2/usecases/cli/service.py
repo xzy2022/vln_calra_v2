@@ -144,6 +144,8 @@ class CliApplicationService(CliApplicationUseCasePort):
     def run_tracking(self, request: TrackingRunRequest) -> TrackingRunResult:
         warnings = self._collect_runtime_warnings(request)
         launch_decision = _LaunchDecision(launch_report=LaunchReport())
+        if request.target_tick_log_path is not None and request.planner != "waypoint":
+            raise CliUsageError("--planner cannot be used with --target-tick-log-path")
         try:
             # Validate input path early so launch map override is deterministic.
             self.scene_template_loader.load_map_name(request.episode_spec)

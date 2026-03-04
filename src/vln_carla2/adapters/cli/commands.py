@@ -11,6 +11,7 @@ from .vehicle_ref_parser import parse_vehicle_ref
 
 RuntimeMode = Literal["sync", "async"]
 WorkflowStrategy = Literal["serial", "parallel"]
+TrackingPlanner = Literal["waypoint", "hybrid_forward"]
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 2000
@@ -151,6 +152,7 @@ class TrackingRunCommand:
     enable_trajectory_log: bool = False
     trajectory_log_path: str | None = None
     target_tick_log_path: str | None = None
+    planner: TrackingPlanner = "waypoint"
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,6 +324,7 @@ def to_tracking_run_command(args: argparse.Namespace) -> TrackingRunCommand:
         enable_trajectory_log=args.enable_trajectory_log,
         trajectory_log_path=args.trajectory_log_path,
         target_tick_log_path=args.target_tick_log_path,
+        planner=args.planner,
     )
 
 

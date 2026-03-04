@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 
-SLICE_NAMES = {"control", "runtime", "scene", "exp", "tracking", "cli", "shared"}
+SLICE_NAMES = {"control", "runtime", "scene", "exp", "tracking", "planning", "cli", "shared"}
 
 
 def test_usecase_slice_dependencies_are_shared_or_api_only() -> None:

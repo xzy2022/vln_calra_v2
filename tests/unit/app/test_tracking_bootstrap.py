@@ -367,6 +367,114 @@ def test_run_tracking_workflow_uses_tick_log_as_target_route(
     )
 
 
+def test_run_tracking_workflow_uses_hybrid_planner_route_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    fake_world = object()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=24,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000003",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=9.0, y=4.0, z=0.1, yaw=45.0),
+        instruction="",
+        max_steps=120,
+        seed=321,
+    )
+    expected_tracking_result = TrackingResult(
+        executed_steps=2,
+        last_frame=2,
+        reached_goal=False,
+        termination_reason="max_steps",
+        final_distance_to_goal_m=1.2,
+        final_yaw_error_deg=3.0,
+        route_points=(),
+        step_traces=(),
+    )
+
+    class FakeSceneStore:
+        def load(self, path: str) -> SceneTemplate:
+            captured.setdefault("scene_load_calls", []).append(path)
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, path: str) -> EpisodeSpec:
+            captured["episode_spec_load_path"] = path
+            return episode_spec
+
+        def resolve_scene_json_path(
+            self,
+            *,
+            episode_spec: EpisodeSpec,
+            episode_spec_path: str,
+        ) -> str:
+            del episode_spec, episode_spec_path
+            return "artifacts/scene_out.json"
+
+    @contextmanager
+    def fake_managed_session(config: tracking.CarlaSessionConfig):
+        captured["session_config"] = config
+        yield SimpleNamespace(world=fake_world)
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["import_init"] = kwargs
+
+        def run(self, path: str) -> int:
+            captured["import_path"] = path
+            return 3
+
+    class FakeRunTrackingLoop:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["tracking_loop_init"] = kwargs
+
+        def run(self, request: Any) -> TrackingResult:
+            captured["tracking_request"] = request
+            return expected_tracking_result
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    def _fail_if_waypoint_planner_used(_world: Any) -> None:
+        raise AssertionError("CarlaWaypointRoutePlannerAdapter should not be used")
+
+    monkeypatch.setattr(tracking, "CarlaWaypointRoutePlannerAdapter", _fail_if_waypoint_planner_used)
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000003/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        control_target=VehicleRefInput(scheme="role", value="ego"),
+        max_steps=20,
+        planner="hybrid_forward",
+    )
+
+    tracking.run_tracking_workflow(settings)
+
+    assert isinstance(
+        captured["tracking_loop_init"]["route_planner"],
+        tracking.PlanningApiRoutePlannerAdapter,
+    )
+
+
 def test_load_target_route_from_tick_log_rejects_map_mismatch() -> None:
     target = _case_dir("rejects_map_mismatch") / "scene_tick_log.json"
     target.write_text(
@@ -429,4 +537,13 @@ def test_load_target_route_from_tick_log_rejects_route_max_points_exceeded(
             path=str(target),
             expected_map_name="Town10HD_Opt",
             route_max_points=2,
+        )
+
+
+def test_tracking_run_settings_rejects_planner_with_target_tick_log_path() -> None:
+    with pytest.raises(ValueError, match="--planner cannot be used with --target-tick-log-path"):
+        tracking.TrackingRunSettings(
+            episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+            planner="hybrid_forward",
+            target_tick_log_path="runs/custom/scene_tick_log.json",
         )

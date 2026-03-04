@@ -175,6 +175,7 @@ class CliWorkflowGateway(CliWorkflowPort):
             enable_trajectory_log=request.enable_trajectory_log,
             trajectory_log_path=request.trajectory_log_path,
             target_tick_log_path=request.target_tick_log_path,
+            planner=request.planner,
         )
         result = run_tracking_composed_workflow(settings)
         return TrackingWorkflowExecution(

@@ -12,6 +12,7 @@ from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 RuntimeMode = Literal["sync", "async"]
 WorkflowStrategy = Literal["serial", "parallel"]
 QualityLevel = Literal["Low", "Epic"]
+TrackingPlanner = Literal["waypoint", "hybrid_forward"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +139,7 @@ class TrackingRunRequest:
     enable_trajectory_log: bool = False
     trajectory_log_path: str | None = None
     target_tick_log_path: str | None = None
+    planner: TrackingPlanner = "waypoint"
 
 
 @dataclass(frozen=True, slots=True)

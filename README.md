@@ -119,9 +119,19 @@ EPISODE_SPEC_EXPORT_DIR=datasets/town10hd_val_v1/episodes/ep_000001
 python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --target-speed-mps 5.0
 ```
 
+使用 Hybrid A*（仅前进）规划器：
+
+```bash
+python -m vln_carla2.app.cli_main tracking run --host 127.0.0.1 --port 2000 --mode sync --episode-spec datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json --launch-carla --planner hybrid_forward
+```
+
 可选关键参数：
 
 - `--max-steps`（默认 `None`，回退到 episode spec）
 - `--route-step-m`、`--route-max-points`
+- `--planner {waypoint,hybrid_forward}`（默认 `waypoint`）
 - `--lookahead-base-m`、`--lookahead-speed-gain`、`--lookahead-min-m`、`--lookahead-max-m`
 - `--pid-kp`、`--pid-ki`、`--pid-kd`
+- `--target-tick-log-path`（从 tick 日志直接跟踪目标轨迹）
+
+注意：`--planner` 与 `--target-tick-log-path` 互斥，不能同时传入。

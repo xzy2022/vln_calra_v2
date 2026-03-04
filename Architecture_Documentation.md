@@ -11,6 +11,7 @@
 - `scene`（scene_editor + safety）
 - `exp`
 - `tracking`（Pure Pursuit + 纵向 PID 路径跟踪）
+- `planning`（A*/Hybrid A* 路径规划）
 - `cli`
 - `shared`（跨切片 DTO / 轻协议）
 
@@ -19,6 +20,12 @@
 
 [[infrastructure]] 次适配器（被驱动侧）：数据库、缓存、MQ 生产者、外部客户端。  
 `infrastructure` 允许依赖 `domain` 与 `usecases/**/ports`。
+
+## 新模块约定（重要）
+
+- 新增外部依赖协议优先放在 `usecases/<slice>/ports`。
+- `domain` 实现类不 import `usecases` 的 `Protocol`，只需方法签名兼容（duck typing）。
+- 跨 usecase 切片调用统一通过 `usecases.<slice>.api` 暴露。
 
 [[app]] 仅组合根：依赖注入、配置、启动。  
 `app` 允许 import 所有层，但不承载业务逻辑。

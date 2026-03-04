@@ -175,6 +175,7 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
         enable_trajectory_log=True,
         trajectory_log_path="runs/custom/tracking_metrics.json",
         target_tick_log_path="runs/custom/scene_tick_log.json",
+        planner="waypoint",
     )
 
     request = to_tracking_run_request(command)
@@ -189,3 +190,52 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
     assert request.enable_trajectory_log is True
     assert request.trajectory_log_path == "runs/custom/tracking_metrics.json"
     assert request.target_tick_log_path == "runs/custom/scene_tick_log.json"
+    assert request.planner == "waypoint"
+
+
+def test_to_tracking_run_request_maps_planner_choice() -> None:
+    command = TrackingRunCommand(
+        host="127.0.0.1",
+        port=2000,
+        timeout_seconds=10.0,
+        map_name="Town10HD_Opt",
+        mode="sync",
+        fixed_delta_seconds=0.05,
+        no_rendering=False,
+        tick_sleep_seconds=0.05,
+        offscreen=False,
+        launch_carla=False,
+        reuse_existing_carla=False,
+        carla_exe=None,
+        carla_startup_timeout_seconds=45.0,
+        quality_level="Epic",
+        with_sound=False,
+        keep_carla_server=False,
+        episode_spec="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        control_target=VehicleRefInput(scheme="role", value="ego"),
+        target_speed_mps=5.0,
+        max_steps=None,
+        route_step_m=2.0,
+        route_max_points=2000,
+        lookahead_base_m=3.0,
+        lookahead_speed_gain=0.35,
+        lookahead_min_m=2.5,
+        lookahead_max_m=12.0,
+        wheelbase_m=2.85,
+        max_steer_angle_deg=70.0,
+        pid_kp=1.0,
+        pid_ki=0.05,
+        pid_kd=0.0,
+        max_throttle=0.75,
+        max_brake=0.30,
+        goal_distance_tolerance_m=1.5,
+        goal_yaw_tolerance_deg=15.0,
+        slowdown_distance_m=12.0,
+        min_slow_speed_mps=0.8,
+        steer_rate_limit_per_step=0.10,
+        planner="hybrid_forward",
+    )
+
+    request = to_tracking_run_request(command)
+
+    assert request.planner == "hybrid_forward"

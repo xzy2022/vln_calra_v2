@@ -6,12 +6,18 @@ import json
 from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from vln_carla2.domain.model.episode_spec import EpisodeTransform
 from vln_carla2.domain.model.vehicle_id import VehicleId
+from vln_carla2.domain.services.planning.hybrid_astar_forward import (
+    HybridAStarForwardPlanner,
+)
 from vln_carla2.infrastructure.carla.actuator_raw import CarlaRawMotionActuator
 from vln_carla2.infrastructure.carla.clock import CarlaClock
+from vln_carla2.infrastructure.carla.planning_map_source_adapter import (
+    CarlaPlanningMapSourceAdapter,
+)
 from vln_carla2.infrastructure.carla.scene_object_spawner_adapter import (
     CarlaSceneObjectSpawnerAdapter,
 )
@@ -29,6 +35,7 @@ from vln_carla2.infrastructure.carla.world_adapter import CarlaWorldAdapter
 from vln_carla2.infrastructure.filesystem.episode_spec_json_store import EpisodeSpecJsonStore
 from vln_carla2.infrastructure.filesystem.exp_metrics_json_store import ExpMetricsJsonStore
 from vln_carla2.infrastructure.filesystem.scene_template_json_store import SceneTemplateJsonStore
+from vln_carla2.usecases.planning.api import BuildPlanningMap, PlanRoute
 from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.runtime.resolve_vehicle_ref import ResolveVehicleRef
@@ -36,11 +43,21 @@ from vln_carla2.usecases.scene.import_scene_template import ImportSceneTemplate
 from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 from vln_carla2.usecases.tracking.api import RunTrackingLoop, TrackingRequest, TrackingResult
 from vln_carla2.usecases.tracking.models import RoutePoint, TrackingStepTrace
+from vln_carla2.usecases.tracking.planning_api_route_planner import (
+    PlanningApiRoutePlannerAdapter,
+)
 
 from .control import StdoutLogger
 
 _CONTROL_TARGET_RESOLVE_RETRIES = 8
 _TRACKING_METRICS_FILENAME = "tracking_metrics.json"
+_PLANNER_NAMES: tuple[str, ...] = ("waypoint", "hybrid_forward")
+_PLANNING_GRID_RESOLUTION_M = 0.5
+_PLANNING_MAP_PADDING_M = 10.0
+_PLANNING_OBSTACLE_INFLATION_M = 1.6
+_PLANNING_YAW_BIN_DEG = 15.0
+_PLANNING_PRIMITIVE_STEP_M = 1.0
+_PLANNING_MAX_ITERATIONS = 80000
 
 
 def _default_control_target() -> VehicleRefInput:
@@ -134,6 +151,7 @@ class TrackingRunSettings:
     steer_rate_limit_per_step: float = 0.10
     no_progress_max_steps: int = 40
     no_progress_min_improvement_m: float = 0.1
+    planner: Literal["waypoint", "hybrid_forward"] = "waypoint"
     bind_spectator: bool = False
     spectator_z: float = 20.0
     enable_trajectory_log: bool = False
@@ -151,6 +169,8 @@ class TrackingRunSettings:
             raise ValueError("fixed_delta_seconds must be positive")
         if self.target_speed_mps < 0:
             raise ValueError("target_speed_mps must be >= 0")
+        if self.planner not in _PLANNER_NAMES:
+            raise ValueError(f"planner must be one of {_PLANNER_NAMES}")
         if self.max_steps is not None and self.max_steps <= 0:
             raise ValueError("max_steps must be > 0 when provided")
         if self.spectator_z <= 0:
@@ -159,6 +179,8 @@ class TrackingRunSettings:
             raise ValueError("trajectory_log_path must not be empty when set")
         if self.target_tick_log_path is not None and not self.target_tick_log_path.strip():
             raise ValueError("target_tick_log_path must not be empty when set")
+        if self.target_tick_log_path is not None and self.planner != "waypoint":
+            raise ValueError("--planner cannot be used with --target-tick-log-path")
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,6 +273,27 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                 f"path={settings.target_tick_log_path} "
                 f"points={len(target_route.route_points)}"
             )
+        elif settings.planner == "hybrid_forward":
+            route_planner = PlanningApiRoutePlannerAdapter(
+                map_name=scene_template.map_name,
+                build_planning_map=BuildPlanningMap(
+                    source=CarlaPlanningMapSourceAdapter(
+                        world=session.world,
+                        scene_template=scene_template,
+                    ),
+                    grid_resolution_m=_PLANNING_GRID_RESOLUTION_M,
+                    map_padding_m=_PLANNING_MAP_PADDING_M,
+                    obstacle_inflation_m=_PLANNING_OBSTACLE_INFLATION_M,
+                ),
+                plan_route_usecase=PlanRoute(
+                    planner=HybridAStarForwardPlanner(
+                        yaw_bin_deg=_PLANNING_YAW_BIN_DEG,
+                        primitive_step_m=_PLANNING_PRIMITIVE_STEP_M,
+                        max_iterations=_PLANNING_MAX_ITERATIONS,
+                    )
+                ),
+            )
+            logger.info("tracking planner selected planner=hybrid_forward")
         else:
             route_planner = CarlaWaypointRoutePlannerAdapter(session.world)
 

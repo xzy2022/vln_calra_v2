@@ -2,6 +2,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+import pytest
+
 from vln_carla2.adapters.cli.dispatch import CliDispatchConfig, dispatch_args
 from vln_carla2.adapters.cli.parser import build_parser
 from vln_carla2.app import cli_main
@@ -247,6 +249,7 @@ def test_build_parser_supports_tracking_run_defaults() -> None:
     assert args.enable_trajectory_log is False
     assert args.trajectory_log_path is None
     assert args.target_tick_log_path is None
+    assert args.planner == "waypoint"
 
 
 def test_build_parser_supports_tracking_run_target_tick_log_path() -> None:
@@ -264,6 +267,24 @@ def test_build_parser_supports_tracking_run_target_tick_log_path() -> None:
     )
 
     assert args.target_tick_log_path == "runs/custom/scene_tick_log.json"
+
+
+def test_build_parser_rejects_tracking_planner_with_target_tick_log_path() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "tracking",
+                "run",
+                "--episode-spec",
+                "datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+                "--planner",
+                "hybrid_forward",
+                "--target-tick-log-path",
+                "runs/custom/scene_tick_log.json",
+            ]
+        )
 
 
 def test_dispatch_vehicle_list_outputs_json(capsys) -> None:

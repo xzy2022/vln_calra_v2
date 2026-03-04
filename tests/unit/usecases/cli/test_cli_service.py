@@ -323,6 +323,8 @@ def _tracking_request(**overrides: Any) -> TrackingRunRequest:
         spectator_z=20.0,
         enable_trajectory_log=False,
         trajectory_log_path=None,
+        target_tick_log_path=None,
+        planner="waypoint",
     )
     payload.update(overrides)
     return TrackingRunRequest(**payload)
@@ -426,6 +428,18 @@ def test_run_tracking_returns_execution_payload() -> None:
         result.execution.metrics_path
         == "runs/20260228_161718/results/ep_000001/tracking_metrics.json"
     )
+
+
+def test_run_tracking_rejects_planner_with_target_tick_log_path() -> None:
+    service = _build_service()
+
+    with pytest.raises(CliUsageError, match="cannot be used with --target-tick-log-path"):
+        service.run_tracking(
+            _tracking_request(
+                planner="hybrid_forward",
+                target_tick_log_path="runs/custom/scene_tick_log.json",
+            )
+        )
 
 
 def test_spectator_follow_skips_when_session_is_offscreen() -> None:
