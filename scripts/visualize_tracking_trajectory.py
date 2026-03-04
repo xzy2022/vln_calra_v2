@@ -109,13 +109,14 @@ def _default_output_path(metrics_path: Path) -> Path:
 
 def _extract_planning_map_layers(
     payload: dict[str, object],
-) -> tuple[np.ndarray, int, list[tuple[float, float, float | None]]]:
+) -> tuple[np.ndarray, int, list[tuple[float, float, float | None]], np.ndarray]:
     planning_map = payload.get("planning_map")
     if not isinstance(planning_map, dict):
-        return np.empty((0, 2), dtype=float), 0, []
+        return np.empty((0, 2), dtype=float), 0, [], np.empty((0, 2), dtype=float)
     occupied_xy, occupied_total = _extract_occupied_cell_xy(planning_map)
     obstacles = _extract_obstacle_markers(planning_map)
-    return occupied_xy, occupied_total, obstacles
+    forbidden_zone_vertices = _extract_forbidden_zone_vertices(planning_map)
+    return occupied_xy, occupied_total, obstacles, forbidden_zone_vertices
 
 
 def _extract_occupied_cell_xy(
@@ -201,6 +202,37 @@ def _extract_obstacle_markers(
     return obstacles
 
 
+def _extract_forbidden_zone_vertices(planning_map: dict[str, object]) -> np.ndarray:
+    raw_zone = planning_map.get("forbidden_zone")
+    if not isinstance(raw_zone, dict):
+        return np.empty((0, 2), dtype=float)
+
+    raw_vertices = raw_zone.get("vertices")
+    if not isinstance(raw_vertices, list):
+        return np.empty((0, 2), dtype=float)
+
+    vertices: list[tuple[float, float]] = []
+    for item in raw_vertices:
+        if not isinstance(item, dict):
+            continue
+        x_value = item.get("x")
+        y_value = item.get("y")
+        if x_value is None or y_value is None:
+            continue
+        try:
+            x = float(x_value)
+            y = float(y_value)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(x) or not math.isfinite(y):
+            continue
+        vertices.append((x, y))
+
+    if len(vertices) < 3:
+        return np.empty((0, 2), dtype=float)
+    return np.asarray(vertices, dtype=float)
+
+
 def main() -> None:
     args = parse_args()
     metrics_path = args.metrics_path
@@ -221,7 +253,9 @@ def main() -> None:
     if len(actual_xy) == 0:
         # scene tick log format stores world position directly as x/y.
         actual_xy = _extract_xy(tick_traces, x_key="x", y_key="y")
-    occupied_xy, occupied_total, obstacles = _extract_planning_map_layers(payload)
+    occupied_xy, occupied_total, obstacles, forbidden_zone_xy = _extract_planning_map_layers(
+        payload
+    )
     if len(planned_xy) == 0 and len(actual_xy) == 0:
         raise SystemExit("no trajectory points found in the metrics file")
 
@@ -279,6 +313,25 @@ def main() -> None:
             zorder=2,
         )
         obstacle_label_used = True
+
+    if len(forbidden_zone_xy) >= 3:
+        closed_xy = np.vstack((forbidden_zone_xy, forbidden_zone_xy[0]))
+        ax_xy.fill(
+            forbidden_zone_xy[:, 0],
+            forbidden_zone_xy[:, 1],
+            color="#d62728",
+            alpha=0.10,
+            label="Forbidden Zone",
+            zorder=2,
+        )
+        ax_xy.plot(
+            closed_xy[:, 0],
+            closed_xy[:, 1],
+            color="#d62728",
+            linewidth=1.3,
+            alpha=0.85,
+            zorder=2,
+        )
 
     if len(planned_xy) > 0:
         ax_xy.plot(

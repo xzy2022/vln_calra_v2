@@ -153,6 +153,7 @@ class TrackingRunCommand:
     trajectory_log_path: str | None = None
     target_tick_log_path: str | None = None
     planner: TrackingPlanner = "waypoint"
+    embed_forbidden_zone: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,6 +326,7 @@ def to_tracking_run_command(args: argparse.Namespace) -> TrackingRunCommand:
         trajectory_log_path=args.trajectory_log_path,
         target_tick_log_path=args.target_tick_log_path,
         planner=args.planner,
+        embed_forbidden_zone=args.embed_forbidden_zone,
     )
 
 

@@ -176,6 +176,7 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
         trajectory_log_path="runs/custom/tracking_metrics.json",
         target_tick_log_path="runs/custom/scene_tick_log.json",
         planner="waypoint",
+        embed_forbidden_zone=True,
     )
 
     request = to_tracking_run_request(command)
@@ -191,6 +192,7 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
     assert request.trajectory_log_path == "runs/custom/tracking_metrics.json"
     assert request.target_tick_log_path == "runs/custom/scene_tick_log.json"
     assert request.planner == "waypoint"
+    assert request.embed_forbidden_zone is True
 
 
 def test_to_tracking_run_request_maps_planner_choice() -> None:

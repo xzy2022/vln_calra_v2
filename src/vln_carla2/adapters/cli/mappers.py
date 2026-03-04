@@ -161,6 +161,7 @@ def to_tracking_run_request(command: TrackingRunCommand) -> TrackingRunRequest:
         trajectory_log_path=command.trajectory_log_path,
         target_tick_log_path=command.target_tick_log_path,
         planner=command.planner,
+        embed_forbidden_zone=command.embed_forbidden_zone,
     )
 
 

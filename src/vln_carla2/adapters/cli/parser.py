@@ -250,6 +250,14 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
         ),
     )
     tracking_run.add_argument(
+        "--embed-forbidden-zone",
+        action="store_true",
+        help=(
+            "Embed scene-derived forbidden zone into hybrid_forward planning map. "
+            "Only supported with --planner=hybrid_forward."
+        ),
+    )
+    tracking_run.add_argument(
         "--trajectory-log-path",
         help=(
             "Optional output path for tracking trajectory metrics JSON. "

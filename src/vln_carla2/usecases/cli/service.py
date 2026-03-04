@@ -146,6 +146,8 @@ class CliApplicationService(CliApplicationUseCasePort):
         launch_decision = _LaunchDecision(launch_report=LaunchReport())
         if request.target_tick_log_path is not None and request.planner != "waypoint":
             raise CliUsageError("--planner cannot be used with --target-tick-log-path")
+        if request.embed_forbidden_zone and request.planner != "hybrid_forward":
+            raise CliUsageError("--embed-forbidden-zone requires --planner hybrid_forward")
         try:
             # Validate input path early so launch map override is deterministic.
             self.scene_template_loader.load_map_name(request.episode_spec)

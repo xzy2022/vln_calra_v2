@@ -325,6 +325,7 @@ def _tracking_request(**overrides: Any) -> TrackingRunRequest:
         trajectory_log_path=None,
         target_tick_log_path=None,
         planner="waypoint",
+        embed_forbidden_zone=False,
     )
     payload.update(overrides)
     return TrackingRunRequest(**payload)
@@ -440,6 +441,13 @@ def test_run_tracking_rejects_planner_with_target_tick_log_path() -> None:
                 target_tick_log_path="runs/custom/scene_tick_log.json",
             )
         )
+
+
+def test_run_tracking_rejects_embed_forbidden_zone_without_hybrid_planner() -> None:
+    service = _build_service()
+
+    with pytest.raises(CliUsageError, match="requires --planner hybrid_forward"):
+        service.run_tracking(_tracking_request(embed_forbidden_zone=True))
 
 
 def test_spectator_follow_skips_when_session_is_offscreen() -> None:

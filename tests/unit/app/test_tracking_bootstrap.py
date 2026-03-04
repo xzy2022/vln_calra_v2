@@ -12,7 +12,9 @@ import pytest
 
 from vln_carla2.app.wiring import tracking
 from vln_carla2.domain.model.episode_spec import EpisodeSpec, EpisodeTransform
+from vln_carla2.domain.model.forbidden_zone import ForbiddenZone
 from vln_carla2.domain.model.planning_map import PlanningMap
+from vln_carla2.domain.model.point2d import Point2D
 from vln_carla2.domain.model.scene_template import (
     SceneObject,
     SceneObjectKind,
@@ -651,6 +653,257 @@ def test_run_tracking_workflow_hybrid_trajectory_log_includes_local_planning_map
     }
 
 
+def test_run_tracking_workflow_hybrid_embed_forbidden_zone_wires_and_logs_vertices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    fake_world = object()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=24,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000003",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=9.0, y=4.0, z=0.1, yaw=45.0),
+        instruction="",
+        max_steps=120,
+        seed=321,
+    )
+    expected_tracking_result = TrackingResult(
+        executed_steps=3,
+        last_frame=3,
+        reached_goal=False,
+        termination_reason="max_steps",
+        final_distance_to_goal_m=2.0,
+        final_yaw_error_deg=5.0,
+        route_points=(
+            RoutePoint(x=12.0, y=12.0, yaw_deg=0.0),
+            RoutePoint(x=13.0, y=13.0, yaw_deg=0.0),
+        ),
+        step_traces=(),
+    )
+    forbidden_zone = ForbiddenZone(
+        vertices=(
+            Point2D(x=8.0, y=8.0),
+            Point2D(x=14.0, y=8.0),
+            Point2D(x=12.0, y=14.0),
+        )
+    )
+
+    class FakeSceneStore:
+        def load(self, path: str) -> SceneTemplate:
+            captured.setdefault("scene_load_calls", []).append(path)
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, path: str) -> EpisodeSpec:
+            captured["episode_spec_load_path"] = path
+            return episode_spec
+
+        def resolve_scene_json_path(
+            self,
+            *,
+            episode_spec: EpisodeSpec,
+            episode_spec_path: str,
+        ) -> str:
+            del episode_spec, episode_spec_path
+            return "artifacts/scene_out.json"
+
+    @contextmanager
+    def fake_managed_session(config: tracking.CarlaSessionConfig):
+        captured["session_config"] = config
+        yield SimpleNamespace(world=fake_world)
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["import_init"] = kwargs
+
+        def run(self, path: str) -> int:
+            captured["import_path"] = path
+            return 3
+
+    class FakeRunTrackingLoop:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["tracking_loop_init"] = kwargs
+
+        def run(self, request: Any) -> TrackingResult:
+            captured["tracking_request"] = request
+            return expected_tracking_result
+
+    class FakeMetricsStore:
+        def save(self, metrics_payload: dict[str, object], path: str) -> str:
+            captured["metrics_payload"] = dict(metrics_payload)
+            captured["metrics_path_arg"] = path
+            return f"/abs/{path}"
+
+    class FakeForbiddenZoneFromScene:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["forbidden_zone_builder_init"] = kwargs
+
+        def run(self, scene_json_path: str) -> ForbiddenZone:
+            captured["forbidden_zone_scene_json_path"] = scene_json_path
+            return forbidden_zone
+
+    class FakeHybridRoutePlanner:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["hybrid_planner_init"] = kwargs
+            self.last_planning_map = PlanningMap(
+                map_name="Town10HD_Opt",
+                resolution_m=1.0,
+                min_x=0.0,
+                max_x=100.0,
+                min_y=0.0,
+                max_y=100.0,
+                width=100,
+                height=100,
+                occupied_cells=((15, 15),),
+            )
+
+        def plan_route(self, **_kwargs: Any) -> tuple[RoutePoint, ...]:
+            return expected_tracking_result.route_points
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(tracking, "ExpMetricsJsonStore", lambda: FakeMetricsStore())
+    monkeypatch.setattr(tracking, "BuildForbiddenZoneFromScene", FakeForbiddenZoneFromScene)
+    monkeypatch.setattr(tracking, "PlanningApiRoutePlannerAdapter", FakeHybridRoutePlanner)
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    def _fail_if_waypoint_planner_used(_world: Any) -> None:
+        raise AssertionError("CarlaWaypointRoutePlannerAdapter should not be used")
+
+    monkeypatch.setattr(tracking, "CarlaWaypointRoutePlannerAdapter", _fail_if_waypoint_planner_used)
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000003/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        control_target=VehicleRefInput(scheme="role", value="ego"),
+        max_steps=20,
+        planner="hybrid_forward",
+        enable_trajectory_log=True,
+        embed_forbidden_zone=True,
+    )
+
+    tracking.run_tracking_workflow(settings)
+
+    assert isinstance(captured["tracking_loop_init"]["route_planner"], FakeHybridRoutePlanner)
+    assert captured["forbidden_zone_scene_json_path"] == "artifacts/scene_out.json"
+    assert captured["hybrid_planner_init"]["forbidden_zone"] == forbidden_zone
+    planning_map_payload = captured["metrics_payload"]["planning_map"]
+    assert planning_map_payload["forbidden_zone"]["source"] == "scene_barrel_convex_hull"
+    assert planning_map_payload["forbidden_zone"]["vertices"] == [
+        {"x": 8.0, "y": 8.0},
+        {"x": 14.0, "y": 8.0},
+        {"x": 12.0, "y": 14.0},
+    ]
+
+
+def test_run_tracking_workflow_hybrid_embed_forbidden_zone_build_failure_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    fake_world = object()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=24,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000003",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=9.0, y=4.0, z=0.1, yaw=45.0),
+        instruction="",
+        max_steps=120,
+        seed=321,
+    )
+
+    class FakeSceneStore:
+        def load(self, path: str) -> SceneTemplate:
+            captured.setdefault("scene_load_calls", []).append(path)
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, path: str) -> EpisodeSpec:
+            captured["episode_spec_load_path"] = path
+            return episode_spec
+
+        def resolve_scene_json_path(
+            self,
+            *,
+            episode_spec: EpisodeSpec,
+            episode_spec_path: str,
+        ) -> str:
+            del episode_spec, episode_spec_path
+            return "artifacts/scene_out.json"
+
+    @contextmanager
+    def fake_managed_session(config: tracking.CarlaSessionConfig):
+        captured["session_config"] = config
+        yield SimpleNamespace(world=fake_world)
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["import_init"] = kwargs
+
+        def run(self, path: str) -> int:
+            captured["import_path"] = path
+            return 3
+
+    class FailingForbiddenZoneFromScene:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["forbidden_zone_builder_init"] = kwargs
+
+        def run(self, scene_json_path: str) -> ForbiddenZone:
+            del scene_json_path
+            raise ValueError("at least 3 unique obstacle points are required")
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "BuildForbiddenZoneFromScene", FailingForbiddenZoneFromScene)
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000003/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        control_target=VehicleRefInput(scheme="role", value="ego"),
+        max_steps=20,
+        planner="hybrid_forward",
+        embed_forbidden_zone=True,
+    )
+
+    with pytest.raises(ValueError, match="at least 3 unique obstacle points are required"):
+        tracking.run_tracking_workflow(settings)
+
+
 def test_load_target_route_from_tick_log_rejects_map_mismatch() -> None:
     target = _case_dir("rejects_map_mismatch") / "scene_tick_log.json"
     target.write_text(
@@ -722,4 +975,13 @@ def test_tracking_run_settings_rejects_planner_with_target_tick_log_path() -> No
             episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
             planner="hybrid_forward",
             target_tick_log_path="runs/custom/scene_tick_log.json",
+        )
+
+
+def test_tracking_run_settings_rejects_embed_forbidden_zone_without_hybrid() -> None:
+    with pytest.raises(ValueError, match="requires --planner hybrid_forward"):
+        tracking.TrackingRunSettings(
+            episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+            planner="waypoint",
+            embed_forbidden_zone=True,
         )

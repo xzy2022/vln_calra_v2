@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 from vln_carla2.domain.model.episode_spec import EpisodeTransform
+from vln_carla2.domain.model.forbidden_zone import ForbiddenZone
 from vln_carla2.domain.model.planning_map import PlanningMap
 from vln_carla2.domain.model.scene_template import SceneObjectKind, SceneTemplate
 from vln_carla2.domain.model.vehicle_id import VehicleId
@@ -42,6 +43,10 @@ from vln_carla2.usecases.planning.api import BuildPlanningMap, PlanRoute
 from vln_carla2.usecases.runtime.follow_vehicle_topdown import FollowVehicleTopDown
 from vln_carla2.usecases.runtime.ports.vehicle_dto import VehicleDescriptor
 from vln_carla2.usecases.runtime.resolve_vehicle_ref import ResolveVehicleRef
+from vln_carla2.usecases.scene.andrew_monotone_chain_forbidden_zone_builder import (
+    AndrewMonotoneChainForbiddenZoneBuilder,
+)
+from vln_carla2.usecases.scene.build_forbidden_zone_from_scene import BuildForbiddenZoneFromScene
 from vln_carla2.usecases.scene.import_scene_template import ImportSceneTemplate
 from vln_carla2.usecases.shared.vehicle_ref import VehicleRefInput
 from vln_carla2.usecases.tracking.api import RunTrackingLoop, TrackingRequest, TrackingResult
@@ -162,6 +167,7 @@ class TrackingRunSettings:
     enable_trajectory_log: bool = False
     trajectory_log_path: str | None = None
     target_tick_log_path: str | None = None
+    embed_forbidden_zone: bool = False
 
     def __post_init__(self) -> None:
         if not self.episode_spec_path or not self.episode_spec_path.strip():
@@ -186,6 +192,8 @@ class TrackingRunSettings:
             raise ValueError("target_tick_log_path must not be empty when set")
         if self.target_tick_log_path is not None and self.planner != "waypoint":
             raise ValueError("--planner cannot be used with --target-tick-log-path")
+        if self.embed_forbidden_zone and self.planner != "hybrid_forward":
+            raise ValueError("--embed-forbidden-zone requires --planner hybrid_forward")
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,6 +274,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
         goal_transform = episode_spec.goal_transform
         route_planner: Any
         hybrid_route_planner: PlanningApiRoutePlannerAdapter | None = None
+        forbidden_zone: ForbiddenZone | None = None
         if settings.target_tick_log_path is not None:
             target_route = _load_target_route_from_tick_log(
                 path=settings.target_tick_log_path,
@@ -280,6 +289,16 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                 f"points={len(target_route.route_points)}"
             )
         elif settings.planner == "hybrid_forward":
+            if settings.embed_forbidden_zone:
+                forbidden_zone = BuildForbiddenZoneFromScene(
+                    scene_loader=scene_store,
+                    zone_builder=AndrewMonotoneChainForbiddenZoneBuilder(),
+                    expected_map_name=scene_template.map_name,
+                ).run(scene_json_path)
+                logger.info(
+                    "tracking forbidden zone embedded "
+                    f"vertices={len(forbidden_zone.vertices)}"
+                )
             hybrid_route_planner = PlanningApiRoutePlannerAdapter(
                 map_name=scene_template.map_name,
                 build_planning_map=BuildPlanningMap(
@@ -298,6 +317,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                         max_iterations=_PLANNING_MAX_ITERATIONS,
                     )
                 ),
+                forbidden_zone=forbidden_zone,
             )
             route_planner = hybrid_route_planner
             logger.info("tracking planner selected planner=hybrid_forward")
@@ -358,6 +378,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                     start_transform=episode_spec.start_transform,
                     goal_transform=goal_transform,
                     tracking_result=tracking_result,
+                    forbidden_zone=forbidden_zone,
                 )
             payload = _build_tracking_metrics_payload(
                 episode_spec_path=settings.episode_spec_path,
@@ -433,6 +454,7 @@ def _build_local_planning_map_payload(
     start_transform: EpisodeTransform,
     goal_transform: EpisodeTransform,
     tracking_result: TrackingResult,
+    forbidden_zone: ForbiddenZone | None = None,
 ) -> dict[str, object] | None:
     if planning_map is None:
         return None
@@ -444,6 +466,8 @@ def _build_local_planning_map_payload(
     focus_points.append((start_transform.x, start_transform.y))
     focus_points.append((goal_transform.x, goal_transform.y))
     focus_points.extend((obstacle[0], obstacle[1]) for obstacle in obstacles)
+    if forbidden_zone is not None:
+        focus_points.extend((vertex.x, vertex.y) for vertex in forbidden_zone.vertices)
 
     min_focus_x = min(point[0] for point in focus_points) - _PLANNING_LOCAL_MAP_PADDING_M
     max_focus_x = max(point[0] for point in focus_points) + _PLANNING_LOCAL_MAP_PADDING_M
@@ -500,7 +524,7 @@ def _build_local_planning_map_payload(
         if local_origin_x <= x <= local_max_x and local_origin_y <= y <= local_max_y
     ]
 
-    return {
+    payload: dict[str, object] = {
         "planner": "hybrid_forward",
         "scope": "episode_local",
         "resolution_m": resolution_m,
@@ -517,6 +541,15 @@ def _build_local_planning_map_payload(
         "occupied_cells": occupied_cells,
         "obstacles": cropped_obstacles,
     }
+    if forbidden_zone is not None:
+        payload["forbidden_zone"] = {
+            "source": "scene_barrel_convex_hull",
+            "vertices": [
+                {"x": vertex.x, "y": vertex.y}
+                for vertex in forbidden_zone.vertices
+            ],
+        }
+    return payload
 
 
 def _extract_scene_barrel_obstacles(

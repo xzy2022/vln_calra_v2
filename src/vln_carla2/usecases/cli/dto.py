@@ -140,6 +140,7 @@ class TrackingRunRequest:
     trajectory_log_path: str | None = None
     target_tick_log_path: str | None = None
     planner: TrackingPlanner = "waypoint"
+    embed_forbidden_zone: bool = False
 
 
 @dataclass(frozen=True, slots=True)
