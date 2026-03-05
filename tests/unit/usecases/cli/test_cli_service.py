@@ -69,6 +69,9 @@ class _FakeWorkflows:
             final_yaw_error_deg=2.0,
             route_points=120,
             metrics_path="runs/20260228_161718/results/ep_000001/tracking_metrics.json",
+            camera_index_path="runs/20260228_161718/results/ep_000001/camera/front_rgb/index.json",
+            camera_output_dir="runs/20260228_161718/results/ep_000001/camera/front_rgb",
+            camera_frames=12,
         )
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:
@@ -323,6 +326,12 @@ def _tracking_request(**overrides: Any) -> TrackingRunRequest:
         spectator_z=20.0,
         enable_trajectory_log=False,
         trajectory_log_path=None,
+        enable_camera_log=False,
+        camera_log_dir=None,
+        camera_width=800,
+        camera_height=600,
+        camera_fov=90.0,
+        camera_jpeg_quality=90,
         target_tick_log_path=None,
         planner="waypoint",
         embed_forbidden_zone=False,
@@ -429,6 +438,11 @@ def test_run_tracking_returns_execution_payload() -> None:
         result.execution.metrics_path
         == "runs/20260228_161718/results/ep_000001/tracking_metrics.json"
     )
+    assert (
+        result.execution.camera_index_path
+        == "runs/20260228_161718/results/ep_000001/camera/front_rgb/index.json"
+    )
+    assert result.execution.camera_frames == 12
 
 
 def test_run_tracking_rejects_planner_with_target_tick_log_path() -> None:
@@ -448,6 +462,18 @@ def test_run_tracking_rejects_embed_forbidden_zone_without_hybrid_planner() -> N
 
     with pytest.raises(CliUsageError, match="requires --planner hybrid_forward"):
         service.run_tracking(_tracking_request(embed_forbidden_zone=True))
+
+
+def test_run_tracking_rejects_camera_log_with_no_rendering() -> None:
+    service = _build_service()
+
+    with pytest.raises(CliUsageError, match="cannot be used with --no-rendering"):
+        service.run_tracking(
+            _tracking_request(
+                enable_camera_log=True,
+                no_rendering=True,
+            )
+        )
 
 
 def test_spectator_follow_skips_when_session_is_offscreen() -> None:

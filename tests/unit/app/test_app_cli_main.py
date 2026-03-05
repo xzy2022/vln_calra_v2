@@ -85,6 +85,9 @@ class _FakeApp:
                 final_yaw_error_deg=2.0,
                 route_points=120,
                 metrics_path="runs/20260228_161718/results/ep_000001/tracking_metrics.json",
+                camera_index_path="runs/20260228_161718/results/ep_000001/camera/front_rgb/index.json",
+                camera_output_dir="runs/20260228_161718/results/ep_000001/camera/front_rgb",
+                camera_frames=12,
             ),
         )
 
@@ -249,6 +252,12 @@ def test_build_parser_supports_tracking_run_defaults() -> None:
     assert args.enable_trajectory_log is False
     assert args.embed_forbidden_zone is False
     assert args.trajectory_log_path is None
+    assert args.enable_camera_log is False
+    assert args.camera_log_dir is None
+    assert args.camera_width == 800
+    assert args.camera_height == 600
+    assert args.camera_fov == 90.0
+    assert args.camera_jpeg_quality == 90
     assert args.target_tick_log_path is None
     assert args.planner == "waypoint"
 
@@ -374,6 +383,12 @@ def test_dispatch_tracking_prints_summary(capsys) -> None:
         "metrics saved path=runs/20260228_161718/results/ep_000001/tracking_metrics.json"
         in stdout
     )
+    assert (
+        "camera index saved path="
+        "runs/20260228_161718/results/ep_000001/camera/front_rgb/index.json"
+        in stdout
+    )
+    assert "camera output dir=runs/20260228_161718/results/ep_000001/camera/front_rgb frames=12" in stdout
     assert app.tracking_calls
 
 

@@ -174,6 +174,12 @@ class CliWorkflowGateway(CliWorkflowPort):
             spectator_z=request.spectator_z,
             enable_trajectory_log=request.enable_trajectory_log,
             trajectory_log_path=request.trajectory_log_path,
+            enable_camera_log=request.enable_camera_log,
+            camera_log_dir=request.camera_log_dir,
+            camera_width=request.camera_width,
+            camera_height=request.camera_height,
+            camera_fov_deg=request.camera_fov,
+            camera_jpeg_quality=request.camera_jpeg_quality,
             target_tick_log_path=request.target_tick_log_path,
             planner=request.planner,
             embed_forbidden_zone=request.embed_forbidden_zone,
@@ -196,6 +202,9 @@ class CliWorkflowGateway(CliWorkflowPort):
             start_transform=result.start_transform,
             goal_transform=result.goal_transform,
             metrics_path=result.metrics_path,
+            camera_index_path=result.camera_index_path,
+            camera_output_dir=result.camera_output_dir,
+            camera_frames=result.camera_frames,
         )
 
     def list_vehicles(self, request: VehicleListRequest) -> list[VehicleDescriptor]:

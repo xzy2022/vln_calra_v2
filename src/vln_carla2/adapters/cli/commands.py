@@ -151,6 +151,12 @@ class TrackingRunCommand:
     spectator_z: float = 20.0
     enable_trajectory_log: bool = False
     trajectory_log_path: str | None = None
+    enable_camera_log: bool = False
+    camera_log_dir: str | None = None
+    camera_width: int = 800
+    camera_height: int = 600
+    camera_fov: float = 90.0
+    camera_jpeg_quality: int = 90
     target_tick_log_path: str | None = None
     planner: TrackingPlanner = "waypoint"
     embed_forbidden_zone: bool = False
@@ -324,6 +330,12 @@ def to_tracking_run_command(args: argparse.Namespace) -> TrackingRunCommand:
         spectator_z=args.spectator_z,
         enable_trajectory_log=args.enable_trajectory_log,
         trajectory_log_path=args.trajectory_log_path,
+        enable_camera_log=args.enable_camera_log,
+        camera_log_dir=args.camera_log_dir,
+        camera_width=args.camera_width,
+        camera_height=args.camera_height,
+        camera_fov=args.camera_fov,
+        camera_jpeg_quality=args.camera_jpeg_quality,
         target_tick_log_path=args.target_tick_log_path,
         planner=args.planner,
         embed_forbidden_zone=args.embed_forbidden_zone,

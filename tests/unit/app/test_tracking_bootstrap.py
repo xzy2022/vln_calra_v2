@@ -985,3 +985,486 @@ def test_tracking_run_settings_rejects_embed_forbidden_zone_without_hybrid() -> 
             planner="waypoint",
             embed_forbidden_zone=True,
         )
+
+
+def test_tracking_run_settings_rejects_camera_log_with_no_rendering() -> None:
+    with pytest.raises(ValueError, match="cannot be used with --no-rendering"):
+        tracking.TrackingRunSettings(
+            episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+            no_rendering_mode=True,
+            enable_camera_log=True,
+        )
+
+
+def test_run_tracking_workflow_camera_recorder_default_path_and_result_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=101,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    expected_tracking_result = TrackingResult(
+        executed_steps=1,
+        last_frame=1,
+        reached_goal=False,
+        termination_reason="max_steps",
+        final_distance_to_goal_m=1.0,
+        final_yaw_error_deg=2.0,
+        route_points=(),
+        step_traces=(),
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000001",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=10.0, y=20.0, z=0.1, yaw=180.0),
+        instruction="",
+        max_steps=2,
+        seed=123,
+    )
+
+    class FakeWorld:
+        def get_actor(self, actor_id: int) -> Any:
+            captured["camera_target_actor_id"] = actor_id
+            return object()
+
+    fake_world = FakeWorld()
+
+    class FakeSceneStore:
+        def load(self, _path: str) -> SceneTemplate:
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, _path: str) -> EpisodeSpec:
+            return episode_spec
+
+        def resolve_scene_json_path(self, **_kwargs: Any) -> str:
+            return "artifacts/scene_out.json"
+
+    @contextmanager
+    def fake_managed_session(config: tracking.CarlaSessionConfig):
+        captured["session_config"] = config
+        yield SimpleNamespace(world=fake_world)
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **_kwargs: Any) -> None:
+            return
+
+        def run(self, _path: str) -> int:
+            return 1
+
+    class FakeRunTrackingLoop:
+        def __init__(self, **_kwargs: Any) -> None:
+            return
+
+        def run(self, _request: Any) -> TrackingResult:
+            return expected_tracking_result
+
+    class FakeRecorder:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["camera_recorder_init"] = kwargs
+            self._base_output_dir = Path(kwargs["base_output_dir"])
+            self.frames_captured = 3
+            self.last_error = None
+            self.output_dir = str(self._base_output_dir / "front_rgb")
+            self._index_path = str(self._base_output_dir / "front_rgb" / "index.json")
+            self.started = 0
+            self.stopped = 0
+            self.destroyed = 0
+            self.saved = 0
+
+        def start(self) -> None:
+            self.started += 1
+
+        def stop(self) -> None:
+            self.stopped += 1
+
+        def save_index(self) -> str:
+            self.saved += 1
+            return self._index_path
+
+        def destroy(self) -> None:
+            self.destroyed += 1
+
+    class _FakeDateTime:
+        @staticmethod
+        def now() -> datetime:
+            return datetime(2026, 3, 1, 12, 34, 56)
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(tracking, "CarlaFrontRgbCameraRecorder", FakeRecorder)
+    monkeypatch.setattr(tracking, "datetime", _FakeDateTime)
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        enable_camera_log=True,
+        max_steps=1,
+    )
+
+    result = tracking.run_tracking_workflow(settings)
+
+    expected_base_dir = Path("runs/20260301_123456/results/ep_000001/camera")
+    assert captured["camera_recorder_init"]["base_output_dir"] == expected_base_dir
+    assert result.camera_output_dir is not None
+    assert Path(result.camera_output_dir).as_posix() == (
+        "runs/20260301_123456/results/ep_000001/camera/front_rgb"
+    )
+    assert result.camera_index_path is not None
+    assert Path(result.camera_index_path).as_posix() == (
+        "runs/20260301_123456/results/ep_000001/camera/front_rgb/index.json"
+    )
+    assert result.camera_frames == 3
+
+
+def test_run_tracking_workflow_camera_recorder_uses_custom_log_dir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=102,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    expected_tracking_result = TrackingResult(
+        executed_steps=1,
+        last_frame=1,
+        reached_goal=False,
+        termination_reason="max_steps",
+        final_distance_to_goal_m=1.0,
+        final_yaw_error_deg=2.0,
+        route_points=(),
+        step_traces=(),
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000001",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=10.0, y=20.0, z=0.1, yaw=180.0),
+        instruction="",
+        max_steps=2,
+        seed=123,
+    )
+
+    class FakeWorld:
+        def get_actor(self, _actor_id: int) -> Any:
+            return object()
+
+    @contextmanager
+    def fake_managed_session(_config: tracking.CarlaSessionConfig):
+        yield SimpleNamespace(world=FakeWorld())
+
+    class FakeSceneStore:
+        def load(self, _path: str) -> SceneTemplate:
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, _path: str) -> EpisodeSpec:
+            return episode_spec
+
+        def resolve_scene_json_path(self, **_kwargs: Any) -> str:
+            return "artifacts/scene_out.json"
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **_kwargs: Any) -> None:
+            return
+
+        def run(self, _path: str) -> int:
+            return 1
+
+    class FakeRunTrackingLoop:
+        def __init__(self, **_kwargs: Any) -> None:
+            return
+
+        def run(self, _request: Any) -> TrackingResult:
+            return expected_tracking_result
+
+    class FakeRecorder:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["base_output_dir"] = kwargs["base_output_dir"]
+            self.frames_captured = 1
+            self.last_error = None
+            self.output_dir = str(Path(kwargs["base_output_dir"]) / "front_rgb")
+
+        def start(self) -> None:
+            return
+
+        def stop(self) -> None:
+            return
+
+        def save_index(self) -> str:
+            return str(Path(captured["base_output_dir"]) / "front_rgb" / "index.json")
+
+        def destroy(self) -> None:
+            return
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(tracking, "CarlaFrontRgbCameraRecorder", FakeRecorder)
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        enable_camera_log=True,
+        camera_log_dir="runs/custom_camera_log",
+        max_steps=1,
+    )
+
+    result = tracking.run_tracking_workflow(settings)
+
+    assert Path(captured["base_output_dir"]).as_posix() == "runs/custom_camera_log"
+    assert result.camera_output_dir is not None
+    assert Path(result.camera_output_dir).as_posix() == "runs/custom_camera_log/front_rgb"
+
+
+def test_run_tracking_workflow_camera_callback_error_raises_and_cleans_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=103,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000001",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=10.0, y=20.0, z=0.1, yaw=180.0),
+        instruction="",
+        max_steps=2,
+        seed=123,
+    )
+
+    class FakeWorld:
+        def get_actor(self, _actor_id: int) -> Any:
+            return object()
+
+        def tick(self) -> int:
+            return 1
+
+    @contextmanager
+    def fake_managed_session(_config: tracking.CarlaSessionConfig):
+        yield SimpleNamespace(world=FakeWorld())
+
+    class FakeSceneStore:
+        def load(self, _path: str) -> SceneTemplate:
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, _path: str) -> EpisodeSpec:
+            return episode_spec
+
+        def resolve_scene_json_path(self, **_kwargs: Any) -> str:
+            return "artifacts/scene_out.json"
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **_kwargs: Any) -> None:
+            return
+
+        def run(self, _path: str) -> int:
+            return 1
+
+    class FakeRunTrackingLoop:
+        def __init__(self, **kwargs: Any) -> None:
+            self._clock = kwargs["clock"]
+
+        def run(self, _request: Any) -> TrackingResult:
+            self._clock.tick()
+            return TrackingResult(
+                executed_steps=1,
+                last_frame=1,
+                reached_goal=False,
+                termination_reason="max_steps",
+                final_distance_to_goal_m=1.0,
+                final_yaw_error_deg=2.0,
+                route_points=(),
+                step_traces=(),
+            )
+
+    class FakeRecorder:
+        def __init__(self, **_kwargs: Any) -> None:
+            self.frames_captured = 0
+            self.last_error = "jpeg encode failed"
+            self.output_dir = "runs/fake/front_rgb"
+
+        def start(self) -> None:
+            captured["started"] = captured.get("started", 0) + 1
+
+        def stop(self) -> None:
+            captured["stopped"] = captured.get("stopped", 0) + 1
+
+        def save_index(self) -> str:
+            captured["saved"] = captured.get("saved", 0) + 1
+            return "runs/fake/front_rgb/index.json"
+
+        def destroy(self) -> None:
+            captured["destroyed"] = captured.get("destroyed", 0) + 1
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(tracking, "CarlaFrontRgbCameraRecorder", FakeRecorder)
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        enable_camera_log=True,
+        max_steps=1,
+    )
+
+    with pytest.raises(RuntimeError, match="camera recorder callback failed"):
+        tracking.run_tracking_workflow(settings)
+    assert captured["started"] == 1
+    assert captured["stopped"] == 1
+    assert captured["saved"] == 1
+    assert captured["destroyed"] == 1
+
+
+def test_run_tracking_workflow_camera_start_failure_raises_and_cleans_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    template = _scene_template()
+    selected_vehicle = VehicleDescriptor(
+        actor_id=104,
+        type_id="vehicle.tesla.model3",
+        role_name="ego",
+        x=0.0,
+        y=0.0,
+        z=0.0,
+    )
+    episode_spec = EpisodeSpec(
+        schema_version=1,
+        episode_id="ep_000001",
+        scene_json_path="scene_out.json",
+        start_transform=EpisodeTransform(x=1.0, y=2.0, z=0.1, yaw=0.0),
+        goal_transform=EpisodeTransform(x=10.0, y=20.0, z=0.1, yaw=180.0),
+        instruction="",
+        max_steps=2,
+        seed=123,
+    )
+
+    class FakeWorld:
+        def get_actor(self, _actor_id: int) -> Any:
+            return object()
+
+    @contextmanager
+    def fake_managed_session(_config: tracking.CarlaSessionConfig):
+        yield SimpleNamespace(world=FakeWorld())
+
+    class FakeSceneStore:
+        def load(self, _path: str) -> SceneTemplate:
+            return template
+
+    class FakeEpisodeStore:
+        def load(self, _path: str) -> EpisodeSpec:
+            return episode_spec
+
+        def resolve_scene_json_path(self, **_kwargs: Any) -> str:
+            return "artifacts/scene_out.json"
+
+    class FakeImportSceneTemplate:
+        def __init__(self, **_kwargs: Any) -> None:
+            return
+
+        def run(self, _path: str) -> int:
+            return 1
+
+    class FakeRunTrackingLoop:
+        def __init__(self, **_kwargs: Any) -> None:
+            return
+
+        def run(self, _request: Any) -> TrackingResult:
+            raise AssertionError("tracking loop should not run when camera start fails")
+
+    class FailingRecorder:
+        def __init__(self, **_kwargs: Any) -> None:
+            self.frames_captured = 0
+            self.last_error = None
+            self.output_dir = "runs/fake/front_rgb"
+
+        def start(self) -> None:
+            captured["started"] = captured.get("started", 0) + 1
+            raise RuntimeError("spawn failed")
+
+        def stop(self) -> None:
+            captured["stopped"] = captured.get("stopped", 0) + 1
+
+        def save_index(self) -> str:
+            captured["saved"] = captured.get("saved", 0) + 1
+            return "runs/fake/front_rgb/index.json"
+
+        def destroy(self) -> None:
+            captured["destroyed"] = captured.get("destroyed", 0) + 1
+
+    monkeypatch.setattr(tracking, "SceneTemplateJsonStore", lambda: FakeSceneStore())
+    monkeypatch.setattr(tracking, "EpisodeSpecJsonStore", lambda: FakeEpisodeStore())
+    monkeypatch.setattr(tracking, "managed_carla_session", fake_managed_session)
+    monkeypatch.setattr(tracking, "ImportSceneTemplate", FakeImportSceneTemplate)
+    monkeypatch.setattr(tracking, "RunTrackingLoop", FakeRunTrackingLoop)
+    monkeypatch.setattr(tracking, "CarlaFrontRgbCameraRecorder", FailingRecorder)
+    monkeypatch.setattr(
+        tracking,
+        "_resolve_control_target_with_retry",
+        lambda **_kwargs: selected_vehicle,
+    )
+
+    settings = tracking.TrackingRunSettings(
+        episode_spec_path="datasets/town10hd_val_v1/episodes/ep_000001/episode_spec.json",
+        host="127.0.0.1",
+        port=2000,
+        enable_camera_log=True,
+        max_steps=1,
+    )
+
+    with pytest.raises(RuntimeError, match="spawn failed"):
+        tracking.run_tracking_workflow(settings)
+    assert captured["started"] == 1
+    assert captured["stopped"] == 1
+    assert captured["saved"] == 1
+    assert captured["destroyed"] == 1

@@ -174,6 +174,12 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
         spectator_z=25.0,
         enable_trajectory_log=True,
         trajectory_log_path="runs/custom/tracking_metrics.json",
+        enable_camera_log=True,
+        camera_log_dir="runs/custom/camera",
+        camera_width=1024,
+        camera_height=576,
+        camera_fov=100.0,
+        camera_jpeg_quality=85,
         target_tick_log_path="runs/custom/scene_tick_log.json",
         planner="waypoint",
         embed_forbidden_zone=True,
@@ -190,6 +196,12 @@ def test_to_tracking_run_request_maps_tracking_parameters() -> None:
     assert request.spectator_z == 25.0
     assert request.enable_trajectory_log is True
     assert request.trajectory_log_path == "runs/custom/tracking_metrics.json"
+    assert request.enable_camera_log is True
+    assert request.camera_log_dir == "runs/custom/camera"
+    assert request.camera_width == 1024
+    assert request.camera_height == 576
+    assert request.camera_fov == 100.0
+    assert request.camera_jpeg_quality == 85
     assert request.target_tick_log_path == "runs/custom/scene_tick_log.json"
     assert request.planner == "waypoint"
     assert request.embed_forbidden_zone is True

@@ -10,6 +10,7 @@ datasets/
 runs/
 
 tmp\*
+.tmp_test_artifacts/
 
 references/*
 

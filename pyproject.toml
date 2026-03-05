@@ -12,6 +12,7 @@ dependencies = [
   # 运行依赖写这里
   "numpy",
   "carla==0.9.16",
+  "Pillow",
 ]
 
 [project.optional-dependencies]

@@ -264,6 +264,22 @@ def build_parser(*, default_carla_exe: str | None = None) -> argparse.ArgumentPa
             "When omitted, writes runs/<time>/results/<episode>/tracking_metrics.json."
         ),
     )
+    tracking_run.add_argument(
+        "--enable-camera-log",
+        action="store_true",
+        help="Enable front RGB camera recording and save image/index outputs.",
+    )
+    tracking_run.add_argument(
+        "--camera-log-dir",
+        help=(
+            "Optional camera output directory. "
+            "When omitted, writes runs/<time>/results/<episode>/camera/front_rgb."
+        ),
+    )
+    tracking_run.add_argument("--camera-width", type=int, default=800)
+    tracking_run.add_argument("--camera-height", type=int, default=600)
+    tracking_run.add_argument("--camera-fov", type=float, default=90.0)
+    tracking_run.add_argument("--camera-jpeg-quality", type=int, default=90)
     planner_group = tracking_run.add_mutually_exclusive_group()
     planner_group.add_argument(
         "--planner",

@@ -138,6 +138,12 @@ class TrackingRunRequest:
     spectator_z: float = 20.0
     enable_trajectory_log: bool = False
     trajectory_log_path: str | None = None
+    enable_camera_log: bool = False
+    camera_log_dir: str | None = None
+    camera_width: int = 800
+    camera_height: int = 600
+    camera_fov: float = 90.0
+    camera_jpeg_quality: int = 90
     target_tick_log_path: str | None = None
     planner: TrackingPlanner = "waypoint"
     embed_forbidden_zone: bool = False
@@ -243,6 +249,9 @@ class TrackingWorkflowExecution:
     start_transform: EpisodeTransform | None = None
     goal_transform: EpisodeTransform | None = None
     metrics_path: str | None = None
+    camera_index_path: str | None = None
+    camera_output_dir: str | None = None
+    camera_frames: int = 0
 
 
 @dataclass(frozen=True, slots=True)

@@ -18,6 +18,10 @@ from vln_carla2.domain.services.planning.hybrid_astar_forward import (
     HybridAStarForwardPlanner,
 )
 from vln_carla2.infrastructure.carla.actuator_raw import CarlaRawMotionActuator
+from vln_carla2.infrastructure.carla.camera_recorder import (
+    CarlaFrontRgbCameraRecorder,
+    FrontRgbCameraConfig,
+)
 from vln_carla2.infrastructure.carla.clock import CarlaClock
 from vln_carla2.infrastructure.carla.planning_map_source_adapter import (
     CarlaPlanningMapSourceAdapter,
@@ -68,6 +72,11 @@ _PLANNING_PRIMITIVE_STEP_M = 1.0
 _PLANNING_MAX_ITERATIONS = 80000
 _PLANNING_LOCAL_MAP_PADDING_M = 10.0
 _PLANNING_BARREL_RADIUS_M = 0.5
+_CAMERA_OUTPUT_SUBDIR = "camera"
+_CAMERA_DEFAULT_WIDTH = 800
+_CAMERA_DEFAULT_HEIGHT = 600
+_CAMERA_DEFAULT_FOV_DEG = 90.0
+_CAMERA_DEFAULT_JPEG_QUALITY = 90
 
 
 def _default_control_target() -> VehicleRefInput:
@@ -90,6 +99,19 @@ class _FollowBoundClock:
                 "spectator follow target missing during tracking run: "
                 f"actor_id={self.vehicle_id.value}"
             )
+        return frame
+
+
+@dataclass(slots=True)
+class _HealthCheckedClock:
+    """Clock wrapper that checks external runtime health after each tick."""
+
+    clock: Any
+    on_tick_completed: Callable[[int], None]
+
+    def tick(self) -> int:
+        frame = int(self.clock.tick())
+        self.on_tick_completed(frame)
         return frame
 
 
@@ -168,6 +190,12 @@ class TrackingRunSettings:
     trajectory_log_path: str | None = None
     target_tick_log_path: str | None = None
     embed_forbidden_zone: bool = False
+    enable_camera_log: bool = False
+    camera_log_dir: str | None = None
+    camera_width: int = _CAMERA_DEFAULT_WIDTH
+    camera_height: int = _CAMERA_DEFAULT_HEIGHT
+    camera_fov_deg: float = _CAMERA_DEFAULT_FOV_DEG
+    camera_jpeg_quality: int = _CAMERA_DEFAULT_JPEG_QUALITY
 
     def __post_init__(self) -> None:
         if not self.episode_spec_path or not self.episode_spec_path.strip():
@@ -194,6 +222,16 @@ class TrackingRunSettings:
             raise ValueError("--planner cannot be used with --target-tick-log-path")
         if self.embed_forbidden_zone and self.planner != "hybrid_forward":
             raise ValueError("--embed-forbidden-zone requires --planner hybrid_forward")
+        if self.camera_log_dir is not None and not self.camera_log_dir.strip():
+            raise ValueError("camera_log_dir must not be empty when set")
+        if self.camera_width <= 0:
+            raise ValueError("camera_width must be > 0")
+        if self.camera_height <= 0:
+            raise ValueError("camera_height must be > 0")
+        if self.camera_jpeg_quality < 1 or self.camera_jpeg_quality > 100:
+            raise ValueError("camera_jpeg_quality must be within [1, 100]")
+        if self.enable_camera_log and self.no_rendering_mode:
+            raise ValueError("--enable-camera-log cannot be used with --no-rendering")
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +248,9 @@ class TrackingRunResult:
     goal_transform: EpisodeTransform
     tracking_result: TrackingResult
     metrics_path: str | None = None
+    camera_index_path: str | None = None
+    camera_output_dir: str | None = None
+    camera_frames: int = 0
 
 
 def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
@@ -222,6 +263,7 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
     )
     scene_store = SceneTemplateJsonStore()
     scene_template = scene_store.load(scene_json_path)
+    run_id = _new_tracking_run_id()
 
     session_config = CarlaSessionConfig(
         host=settings.host,
@@ -234,6 +276,10 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
         offscreen_mode=settings.offscreen_mode,
         force_reload_map=True,
     )
+
+    camera_index_path: str | None = None
+    camera_output_dir: str | None = None
+    camera_frames = 0
 
     with managed_carla_session(session_config) as session:
         imported_objects = ImportSceneTemplate(
@@ -271,126 +317,201 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
                 vehicle_id=vehicle_id,
             )
 
-        goal_transform = episode_spec.goal_transform
-        route_planner: Any
-        hybrid_route_planner: PlanningApiRoutePlannerAdapter | None = None
-        forbidden_zone: ForbiddenZone | None = None
-        if settings.target_tick_log_path is not None:
-            target_route = _load_target_route_from_tick_log(
-                path=settings.target_tick_log_path,
-                expected_map_name=scene_template.map_name,
-                route_max_points=settings.route_max_points,
-            )
-            goal_transform = target_route.goal_transform
-            route_planner = _FixedRoutePlanner(route_points=target_route.route_points)
-            logger.info(
-                "tracking target route loaded "
-                f"path={settings.target_tick_log_path} "
-                f"points={len(target_route.route_points)}"
-            )
-        elif settings.planner == "hybrid_forward":
-            if settings.embed_forbidden_zone:
-                forbidden_zone = BuildForbiddenZoneFromScene(
-                    scene_loader=scene_store,
-                    zone_builder=AndrewMonotoneChainForbiddenZoneBuilder(),
-                    expected_map_name=scene_template.map_name,
-                ).run(scene_json_path)
-                logger.info(
-                    "tracking forbidden zone embedded "
-                    f"vertices={len(forbidden_zone.vertices)}"
-                )
-            hybrid_route_planner = PlanningApiRoutePlannerAdapter(
-                map_name=scene_template.map_name,
-                build_planning_map=BuildPlanningMap(
-                    source=CarlaPlanningMapSourceAdapter(
-                        world=session.world,
-                        scene_template=scene_template,
-                    ),
-                    grid_resolution_m=_PLANNING_GRID_RESOLUTION_M,
-                    map_padding_m=_PLANNING_MAP_PADDING_M,
-                    obstacle_inflation_m=_PLANNING_OBSTACLE_INFLATION_M,
-                ),
-                plan_route_usecase=PlanRoute(
-                    planner=HybridAStarForwardPlanner(
-                        yaw_bin_deg=_PLANNING_YAW_BIN_DEG,
-                        primitive_step_m=_PLANNING_PRIMITIVE_STEP_M,
-                        max_iterations=_PLANNING_MAX_ITERATIONS,
+        camera_recorder: CarlaFrontRgbCameraRecorder | None = None
+        try:
+            if settings.enable_camera_log:
+                target_vehicle_actor = session.world.get_actor(vehicle_id.value)
+                if target_vehicle_actor is None:
+                    raise RuntimeError(
+                        "failed to resolve vehicle actor for camera recorder: "
+                        f"actor_id={vehicle_id.value}"
                     )
-                ),
-                forbidden_zone=forbidden_zone,
-            )
-            route_planner = hybrid_route_planner
-            logger.info("tracking planner selected planner=hybrid_forward")
-        else:
-            route_planner = CarlaWaypointRoutePlannerAdapter(session.world)
+                base_camera_log_dir = (
+                    Path(settings.camera_log_dir)
+                    if settings.camera_log_dir is not None
+                    else _resolve_default_tracking_camera_log_dir(
+                        episode_spec_path=settings.episode_spec_path,
+                        run_id=run_id,
+                    )
+                )
+                camera_recorder = CarlaFrontRgbCameraRecorder(
+                    world=session.world,
+                    vehicle_actor=target_vehicle_actor,
+                    actor_id=selected_vehicle.actor_id,
+                    map_name=scene_template.map_name,
+                    base_output_dir=base_camera_log_dir,
+                    config=FrontRgbCameraConfig(
+                        image_width=settings.camera_width,
+                        image_height=settings.camera_height,
+                        fov_deg=settings.camera_fov_deg,
+                        sensor_tick_seconds=settings.fixed_delta_seconds,
+                        jpeg_quality=settings.camera_jpeg_quality,
+                    ),
+                )
+                camera_recorder.start()
+                camera_output_dir = camera_recorder.output_dir
+                logger.info(
+                    "tracking camera recorder started "
+                    f"output_dir={camera_output_dir} "
+                    f"sensor_tick={settings.fixed_delta_seconds:.3f}"
+                )
 
-        tracking_loop = RunTrackingLoop(
-            state_reader=CarlaVehicleStateReader(session.world),
-            motion_actuator=CarlaRawMotionActuator(session.world),
-            clock=clock,
-            logger=logger,
-            route_planner=route_planner,
-        )
-        effective_max_steps = settings.max_steps or episode_spec.max_steps
-        tracking_result = tracking_loop.run(
-            TrackingRequest(
-                vehicle_id=vehicle_id,
-                goal_x=goal_transform.x,
-                goal_y=goal_transform.y,
-                goal_yaw_deg=goal_transform.yaw,
-                target_speed_mps=settings.target_speed_mps,
-                max_steps=effective_max_steps,
-                dt_seconds=settings.fixed_delta_seconds,
-                route_step_m=settings.route_step_m,
-                route_max_points=settings.route_max_points,
-                lookahead_base_m=settings.lookahead_base_m,
-                lookahead_speed_gain=settings.lookahead_speed_gain,
-                lookahead_min_m=settings.lookahead_min_m,
-                lookahead_max_m=settings.lookahead_max_m,
-                wheelbase_m=settings.wheelbase_m,
-                max_steer_angle_deg=settings.max_steer_angle_deg,
-                pid_kp=settings.pid_kp,
-                pid_ki=settings.pid_ki,
-                pid_kd=settings.pid_kd,
-                max_throttle=settings.max_throttle,
-                max_brake=settings.max_brake,
-                goal_distance_tolerance_m=settings.goal_distance_tolerance_m,
-                goal_yaw_tolerance_deg=settings.goal_yaw_tolerance_deg,
-                slowdown_distance_m=settings.slowdown_distance_m,
-                min_slow_speed_mps=settings.min_slow_speed_mps,
-                steer_rate_limit_per_step=settings.steer_rate_limit_per_step,
-                no_progress_max_steps=settings.no_progress_max_steps,
-                no_progress_min_improvement_m=settings.no_progress_min_improvement_m,
+                def _check_camera_health(frame: int) -> None:
+                    recorder_error = camera_recorder.last_error
+                    if recorder_error is not None:
+                        raise RuntimeError(
+                            "camera recorder callback failed: "
+                            f"frame={frame} error={recorder_error}"
+                        )
+
+                clock = _HealthCheckedClock(
+                    clock=clock,
+                    on_tick_completed=_check_camera_health,
+                )
+
+            goal_transform = episode_spec.goal_transform
+            route_planner: Any
+            hybrid_route_planner: PlanningApiRoutePlannerAdapter | None = None
+            forbidden_zone: ForbiddenZone | None = None
+            if settings.target_tick_log_path is not None:
+                target_route = _load_target_route_from_tick_log(
+                    path=settings.target_tick_log_path,
+                    expected_map_name=scene_template.map_name,
+                    route_max_points=settings.route_max_points,
+                )
+                goal_transform = target_route.goal_transform
+                route_planner = _FixedRoutePlanner(route_points=target_route.route_points)
+                logger.info(
+                    "tracking target route loaded "
+                    f"path={settings.target_tick_log_path} "
+                    f"points={len(target_route.route_points)}"
+                )
+            elif settings.planner == "hybrid_forward":
+                if settings.embed_forbidden_zone:
+                    forbidden_zone = BuildForbiddenZoneFromScene(
+                        scene_loader=scene_store,
+                        zone_builder=AndrewMonotoneChainForbiddenZoneBuilder(),
+                        expected_map_name=scene_template.map_name,
+                    ).run(scene_json_path)
+                    logger.info(
+                        "tracking forbidden zone embedded "
+                        f"vertices={len(forbidden_zone.vertices)}"
+                    )
+                hybrid_route_planner = PlanningApiRoutePlannerAdapter(
+                    map_name=scene_template.map_name,
+                    build_planning_map=BuildPlanningMap(
+                        source=CarlaPlanningMapSourceAdapter(
+                            world=session.world,
+                            scene_template=scene_template,
+                        ),
+                        grid_resolution_m=_PLANNING_GRID_RESOLUTION_M,
+                        map_padding_m=_PLANNING_MAP_PADDING_M,
+                        obstacle_inflation_m=_PLANNING_OBSTACLE_INFLATION_M,
+                    ),
+                    plan_route_usecase=PlanRoute(
+                        planner=HybridAStarForwardPlanner(
+                            yaw_bin_deg=_PLANNING_YAW_BIN_DEG,
+                            primitive_step_m=_PLANNING_PRIMITIVE_STEP_M,
+                            max_iterations=_PLANNING_MAX_ITERATIONS,
+                        )
+                    ),
+                    forbidden_zone=forbidden_zone,
+                )
+                route_planner = hybrid_route_planner
+                logger.info("tracking planner selected planner=hybrid_forward")
+            else:
+                route_planner = CarlaWaypointRoutePlannerAdapter(session.world)
+
+            tracking_loop = RunTrackingLoop(
+                state_reader=CarlaVehicleStateReader(session.world),
+                motion_actuator=CarlaRawMotionActuator(session.world),
+                clock=clock,
+                logger=logger,
+                route_planner=route_planner,
             )
-        )
-        metrics_path: str | None = None
-        if settings.enable_trajectory_log or settings.trajectory_log_path is not None:
-            output_path = settings.trajectory_log_path or str(
-                _resolve_default_tracking_metrics_path(
-                    episode_spec_path=settings.episode_spec_path
+            effective_max_steps = settings.max_steps or episode_spec.max_steps
+            tracking_result = tracking_loop.run(
+                TrackingRequest(
+                    vehicle_id=vehicle_id,
+                    goal_x=goal_transform.x,
+                    goal_y=goal_transform.y,
+                    goal_yaw_deg=goal_transform.yaw,
+                    target_speed_mps=settings.target_speed_mps,
+                    max_steps=effective_max_steps,
+                    dt_seconds=settings.fixed_delta_seconds,
+                    route_step_m=settings.route_step_m,
+                    route_max_points=settings.route_max_points,
+                    lookahead_base_m=settings.lookahead_base_m,
+                    lookahead_speed_gain=settings.lookahead_speed_gain,
+                    lookahead_min_m=settings.lookahead_min_m,
+                    lookahead_max_m=settings.lookahead_max_m,
+                    wheelbase_m=settings.wheelbase_m,
+                    max_steer_angle_deg=settings.max_steer_angle_deg,
+                    pid_kp=settings.pid_kp,
+                    pid_ki=settings.pid_ki,
+                    pid_kd=settings.pid_kd,
+                    max_throttle=settings.max_throttle,
+                    max_brake=settings.max_brake,
+                    goal_distance_tolerance_m=settings.goal_distance_tolerance_m,
+                    goal_yaw_tolerance_deg=settings.goal_yaw_tolerance_deg,
+                    slowdown_distance_m=settings.slowdown_distance_m,
+                    min_slow_speed_mps=settings.min_slow_speed_mps,
+                    steer_rate_limit_per_step=settings.steer_rate_limit_per_step,
+                    no_progress_max_steps=settings.no_progress_max_steps,
+                    no_progress_min_improvement_m=settings.no_progress_min_improvement_m,
                 )
             )
-            planning_map_payload: dict[str, object] | None = None
-            if settings.planner == "hybrid_forward" and hybrid_route_planner is not None:
-                planning_map_payload = _build_local_planning_map_payload(
-                    planning_map=hybrid_route_planner.last_planning_map,
-                    scene_template=scene_template,
+            metrics_path: str | None = None
+            if settings.enable_trajectory_log or settings.trajectory_log_path is not None:
+                output_path = settings.trajectory_log_path or str(
+                    _resolve_default_tracking_metrics_path(
+                        episode_spec_path=settings.episode_spec_path,
+                        run_id=run_id,
+                    )
+                )
+                planning_map_payload: dict[str, object] | None = None
+                if settings.planner == "hybrid_forward" and hybrid_route_planner is not None:
+                    planning_map_payload = _build_local_planning_map_payload(
+                        planning_map=hybrid_route_planner.last_planning_map,
+                        scene_template=scene_template,
+                        start_transform=episode_spec.start_transform,
+                        goal_transform=goal_transform,
+                        tracking_result=tracking_result,
+                        forbidden_zone=forbidden_zone,
+                    )
+                payload = _build_tracking_metrics_payload(
+                    episode_spec_path=settings.episode_spec_path,
+                    scene_map_name=scene_template.map_name,
+                    control_target=settings.control_target,
+                    actor_id=selected_vehicle.actor_id,
                     start_transform=episode_spec.start_transform,
                     goal_transform=goal_transform,
                     tracking_result=tracking_result,
-                    forbidden_zone=forbidden_zone,
+                    planning_map_payload=planning_map_payload,
                 )
-            payload = _build_tracking_metrics_payload(
-                episode_spec_path=settings.episode_spec_path,
-                scene_map_name=scene_template.map_name,
-                control_target=settings.control_target,
-                actor_id=selected_vehicle.actor_id,
-                start_transform=episode_spec.start_transform,
-                goal_transform=goal_transform,
-                tracking_result=tracking_result,
-                planning_map_payload=planning_map_payload,
-            )
-            metrics_path = ExpMetricsJsonStore().save(payload, output_path)
+                metrics_path = ExpMetricsJsonStore().save(payload, output_path)
+        finally:
+            if camera_recorder is not None:
+                try:
+                    camera_recorder.stop()
+                except Exception as exc:
+                    logger.warn(f"failed to stop camera recorder cleanly: {exc}")
+                try:
+                    camera_index_path = camera_recorder.save_index()
+                    camera_output_dir = camera_recorder.output_dir
+                    camera_frames = camera_recorder.frames_captured
+                    logger.info(
+                        "tracking camera recorder saved "
+                        f"frames={camera_frames} "
+                        f"index_path={camera_index_path}"
+                    )
+                except Exception as exc:
+                    logger.warn(f"failed to save camera recorder index: {exc}")
+                finally:
+                    try:
+                        camera_recorder.destroy()
+                    except Exception as exc:
+                        logger.warn(f"failed to destroy camera recorder: {exc}")
 
     return TrackingRunResult(
         episode_spec_path=settings.episode_spec_path,
@@ -403,6 +524,9 @@ def run_tracking_workflow(settings: TrackingRunSettings) -> TrackingRunResult:
         goal_transform=goal_transform,
         tracking_result=tracking_result,
         metrics_path=metrics_path,
+        camera_index_path=camera_index_path,
+        camera_output_dir=camera_output_dir,
+        camera_frames=camera_frames,
     )
 
 
@@ -667,10 +791,20 @@ def _load_target_route_from_tick_log(
     )
 
 
-def _resolve_default_tracking_metrics_path(*, episode_spec_path: str) -> Path:
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+def _new_tracking_run_id() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def _resolve_default_tracking_metrics_path(*, episode_spec_path: str, run_id: str | None = None) -> Path:
+    effective_run_id = run_id or _new_tracking_run_id()
     episode_dir = _resolve_episode_dir_name(episode_spec_path=episode_spec_path)
-    return Path("runs") / run_id / "results" / episode_dir / _TRACKING_METRICS_FILENAME
+    return Path("runs") / effective_run_id / "results" / episode_dir / _TRACKING_METRICS_FILENAME
+
+
+def _resolve_default_tracking_camera_log_dir(*, episode_spec_path: str, run_id: str | None = None) -> Path:
+    effective_run_id = run_id or _new_tracking_run_id()
+    episode_dir = _resolve_episode_dir_name(episode_spec_path=episode_spec_path)
+    return Path("runs") / effective_run_id / "results" / episode_dir / _CAMERA_OUTPUT_SUBDIR
 
 
 def _resolve_episode_dir_name(*, episode_spec_path: str) -> str:

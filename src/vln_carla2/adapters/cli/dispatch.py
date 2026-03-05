@@ -290,6 +290,14 @@ def _print_tracking_result(result) -> None:
         )
     if execution.metrics_path is not None:
         print(f"[INFO] metrics saved path={execution.metrics_path}")
+    if execution.camera_index_path is not None:
+        print(f"[INFO] camera index saved path={execution.camera_index_path}")
+    if execution.camera_output_dir is not None:
+        print(
+            "[INFO] camera output "
+            f"dir={execution.camera_output_dir} "
+            f"frames={execution.camera_frames}"
+        )
 
 
 def _print_launch_report(
